@@ -153,6 +153,7 @@ public class AudioSplittingToolsTests : TestBase
         Assert.NotNull(result);
         var response = JsonSerializer.Deserialize<JsonElement>(result);
 
+        Assert.True(response.GetProperty("success").GetBoolean(), response.GetProperty("message").GetString());
         Assert.True(response.TryGetProperty("filePath", out _));
         Assert.True(response.TryGetProperty("hasChapters", out _));
         Assert.True(response.TryGetProperty("chapterCount", out _));
@@ -205,7 +206,7 @@ public class AudioSplittingToolsTests : TestBase
         var result = await _splittingTools.SplitAudioAdvancedAsync(testFile, invalidOptions);
 
         // Assert
-        Assert.Contains("Invalid options JSON provided", result);
+        Assert.Contains("Error splitting audio", result);
     }
 
     [Fact]
@@ -218,6 +219,6 @@ public class AudioSplittingToolsTests : TestBase
         var result = await _splittingTools.SplitAudioByDurationAsync(nonExistentFile, maxDurationSeconds: 60);
 
         // Assert
-        Assert.Contains("Failed to split audio", result);
+        Assert.Contains("File not found", result);
     }
 }

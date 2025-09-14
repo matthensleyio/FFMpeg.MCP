@@ -247,7 +247,7 @@ public class AudioConversionToolsTests : TestBase
         var result = await _conversionTools.BatchConvertAudioAsync(invalidJson, outputDir, "mp3");
 
         // Assert
-        Assert.Contains("Invalid or empty input paths JSON provided", result);
+        Assert.Contains("Error in batch conversion", result);
     }
 
     [Fact]
@@ -262,6 +262,6 @@ public class AudioConversionToolsTests : TestBase
         var result = await _conversionTools.ConvertAudioAdvancedAsync(inputFile, outputFile, invalidOptions);
 
         // Assert
-        Assert.Contains("Invalid options JSON provided", result);
+        Assert.Contains("Error converting audio", result);
     }
 }

@@ -48,12 +48,12 @@ public class AudioSplittingTools
                 return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
             }
 
-            return $"Failed to split audio by chapters: {result.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = result.Message, errorDetails = result.ErrorDetails }, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error splitting audio by chapters for {FilePath}", filePath);
-            return $"Error splitting audio: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error splitting audio: {ex.Message}" });
         }
     }
 
@@ -88,12 +88,12 @@ public class AudioSplittingTools
                 return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
             }
 
-            return $"Failed to split audio by duration: {result.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = result.Message, errorDetails = result.ErrorDetails }, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error splitting audio by duration for {FilePath}", filePath);
-            return $"Error splitting audio: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error splitting audio: {ex.Message}" });
         }
     }
 
@@ -112,7 +112,7 @@ public class AudioSplittingTools
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error splitting audio by minutes for {FilePath}", filePath);
-            return $"Error splitting audio: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error splitting audio: {ex.Message}" });
         }
     }
 
@@ -124,7 +124,7 @@ public class AudioSplittingTools
         {
             var fileInfo = await _ffmpegService.GetFileInfoAsync(filePath);
             if (fileInfo == null)
-                return $"Could not analyze audio file: {filePath}";
+                return JsonSerializer.Serialize(new { success = false, message = $"Could not analyze audio file: {filePath}" });
 
             var response = new
             {
@@ -147,7 +147,7 @@ public class AudioSplittingTools
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting chapters for {FilePath}", filePath);
-            return $"Error retrieving chapters: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error retrieving chapters: {ex.Message}" });
         }
     }
 
@@ -160,7 +160,7 @@ public class AudioSplittingTools
         {
             var optionsData = JsonSerializer.Deserialize<Dictionary<string, object>>(optionsJson);
             if (optionsData == null)
-                return "Invalid options JSON provided";
+                return JsonSerializer.Serialize(new { success = false, message = "Invalid options JSON provided" });
 
             var options = new SplitOptions
             {
@@ -225,12 +225,12 @@ public class AudioSplittingTools
                 return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
             }
 
-            return $"Failed to split audio: {result.Message} - {result.ErrorDetails}";
+            return JsonSerializer.Serialize(new { success = false, message = result.Message, errorDetails = result.ErrorDetails }, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error splitting audio with advanced options for {FilePath}", filePath);
-            return $"Error splitting audio: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error splitting audio: {ex.Message}" });
         }
     }
 }

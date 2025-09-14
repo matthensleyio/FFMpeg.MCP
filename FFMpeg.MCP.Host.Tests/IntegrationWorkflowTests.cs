@@ -24,10 +24,29 @@ public class IntegrationWorkflowTests : TestBase
     }
 
     [Fact]
+    public async Task GetFileInfo_WithChapters_ReturnsChapterInfo()
+    {
+        // Arrange
+        var inputFile = CopyTestFile("with-chapters.m4a");
+
+        // Act
+        var fileInfoResult = await _metadataTools.GetAudioFileInfoAsync(inputFile);
+
+        // Assert
+        Assert.NotNull(fileInfoResult);
+        var fileInfo = JsonSerializer.Deserialize<JsonElement>(fileInfoResult);
+        Assert.True(fileInfo.GetProperty("success").GetBoolean(), fileInfo.GetProperty("message").GetString());
+        Assert.True(fileInfo.TryGetProperty("chapters", out var chaptersProp));
+        var chapters = chaptersProp.EnumerateArray().ToList();
+        Assert.True(chapters.Count > 0);
+        Assert.Equal("Chapter 1", chapters[0].GetProperty("title").GetString());
+    }
+
+    [Fact]
     public async Task CompleteAudiobookWorkflow_ProcessesFileSuccessfully()
     {
         // Arrange
-        var originalFile = CopyTestFile("test-long.mp3");
+        var originalFile = CopyTestFile("long-form.mp3");
 
         // Step 1: Backup the original file
         var backupResult = await _backupTools.CreateAudioBackupAsync(originalFile);
@@ -123,7 +142,7 @@ public class IntegrationWorkflowTests : TestBase
     public async Task FormatConversionWorkflow_ConvertsAcrossFormats()
     {
         // Arrange
-        var originalMp3 = CopyTestFile("test-short.mp3");
+        var originalMp3 = CopyTestFile("sample-short.mp3");
 
         // Step 1: Convert MP3 to WAV
         var wavFile = GetWorkingPath("converted.wav");
@@ -174,8 +193,8 @@ public class IntegrationWorkflowTests : TestBase
     public async Task BatchProcessingWorkflow_ProcessesMultipleFiles()
     {
         // Arrange
-        var file1 = CopyTestFile("test-short.mp3");
-        var file2 = CopyTestFile("test-speech.wav");
+        var file1 = CopyTestFile("sample-short.mp3");
+        var file2 = CopyTestFile("long-speech.wav");
 
         // Step 1: Create batch backup
         var filePaths = JsonSerializer.Serialize(new[] { file1, file2 });
@@ -251,7 +270,7 @@ public class IntegrationWorkflowTests : TestBase
     public async Task AudioSplittingWorkflow_SplitsAndProcesses()
     {
         // Arrange
-        var longFile = CopyTestFile("test-long.mp3");
+        var longFile = CopyTestFile("long-form.mp3");
 
         // Step 1: Split by duration
         var splitResult = await _splittingTools.SplitAudioByMinutesAsync(longFile, maxDurationMinutes: 2.0);
@@ -317,22 +336,22 @@ public class IntegrationWorkflowTests : TestBase
         Assert.Contains("File not found", conversionResult);
 
         var splitResult = await _splittingTools.SplitAudioByDurationAsync(nonExistentFile, 60);
-        Assert.Contains("Failed to split", splitResult);
+        Assert.Contains("File not found", splitResult);
 
         var backupResult = await _backupTools.CreateAudioBackupAsync(nonExistentFile);
         Assert.Contains("File not found", backupResult);
 
         // Test 2: Invalid JSON operations
-        var validFile = CopyTestFile("test-short.mp3");
+        var validFile = CopyTestFile("sample-short.mp3");
 
         var invalidMetadataResult = await _metadataTools.UpdateAudioMetadataAsync(validFile, "invalid json");
-        Assert.Contains("Invalid metadata JSON", invalidMetadataResult);
+        Assert.Contains("Error updating metadata", invalidMetadataResult);
 
         var invalidChapterResult = await _chapterTools.SetAudioChaptersAsync(validFile, "invalid json");
-        Assert.Contains("Invalid or empty chapters JSON", invalidChapterResult);
+        Assert.Contains("Error setting chapters", invalidChapterResult);
 
         var invalidBatchResult = await _backupTools.CreateBatchBackupAsync("invalid json");
-        Assert.Contains("Invalid or empty file paths JSON", invalidBatchResult);
+        Assert.Contains("Error in batch backup operation", invalidBatchResult);
 
         // All error cases should be handled gracefully without throwing exceptions
         Assert.True(true, "All error cases handled gracefully");

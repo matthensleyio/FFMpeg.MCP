@@ -29,7 +29,7 @@ public class AudioChapterTools
         {
             var chaptersData = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(chaptersJson);
             if (chaptersData == null || !chaptersData.Any())
-                return "Invalid or empty chapters JSON provided";
+                return JsonSerializer.Serialize(new { success = false, message = "Invalid or empty chapters JSON provided" });
 
             var chapters = new List<ChapterInfo>();
 
@@ -77,32 +77,27 @@ public class AudioChapterTools
 
             var result = await _ffmpegService.SetChaptersAsync(filePath, chapters, outputPath);
 
-            if (result.Success)
+            var response = new
             {
-                var response = new
+                success = result.Success,
+                message = result.Message,
+                outputFiles = result.OutputFiles,
+                chaptersAdded = result.Success ? chapters.Count : 0,
+                chapters = result.Success ? chapters.Select(c => new
                 {
-                    success = true,
-                    message = result.Message,
-                    outputFiles = result.OutputFiles,
-                    chaptersAdded = chapters.Count,
-                    chapters = chapters.Select(c => new
-                    {
-                        index = c.Index,
-                        title = c.Title,
-                        startTime = c.StartTime.ToString(@"hh\:mm\:ss"),
-                        endTime = c.EndTime.ToString(@"hh\:mm\:ss"),
-                        duration = (c.EndTime - c.StartTime).ToString(@"hh\:mm\:ss")
-                    }).ToList()
-                };
-                return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-            }
-
-            return $"Failed to set chapters: {result.Message} - {result.ErrorDetails}";
+                    index = c.Index,
+                    title = c.Title,
+                    startTime = c.StartTime.ToString(@"hh\:mm\:ss"),
+                    endTime = c.EndTime.ToString(@"hh\:mm\:ss"),
+                    duration = (c.EndTime - c.StartTime).ToString(@"hh\:mm\:ss")
+                }).ToList() : null
+            };
+            return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error setting chapters for {FilePath}", filePath);
-            return $"Error setting chapters: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error setting chapters: {ex.Message}" });
         }
     }
 
@@ -117,7 +112,7 @@ public class AudioChapterTools
         {
             var fileInfo = await _ffmpegService.GetFileInfoAsync(filePath);
             if (fileInfo == null)
-                return $"Could not analyze audio file: {filePath}";
+                return JsonSerializer.Serialize(new { success = false, message = $"Could not analyze audio file: {filePath}" });
 
             var chapterDuration = TimeSpan.FromMinutes(chapterDurationMinutes);
             var totalDuration = fileInfo.Duration;
@@ -143,34 +138,29 @@ public class AudioChapterTools
 
             var result = await _ffmpegService.SetChaptersAsync(filePath, chapters, outputPath);
 
-            if (result.Success)
+            var response = new
             {
-                var response = new
+                success = result.Success,
+                message = result.Message,
+                outputFiles = result.OutputFiles,
+                chaptersGenerated = result.Success ? chapters.Count : 0,
+                chapterDurationMinutes = chapterDurationMinutes,
+                totalDurationMinutes = totalDuration.TotalMinutes,
+                chapters = result.Success ? chapters.Select(c => new
                 {
-                    success = true,
-                    message = result.Message,
-                    outputFiles = result.OutputFiles,
-                    chaptersGenerated = chapters.Count,
-                    chapterDurationMinutes = chapterDurationMinutes,
-                    totalDurationMinutes = totalDuration.TotalMinutes,
-                    chapters = chapters.Select(c => new
-                    {
-                        index = c.Index + 1,
-                        title = c.Title,
-                        startTime = c.StartTime.ToString(@"hh\:mm\:ss"),
-                        endTime = c.EndTime.ToString(@"hh\:mm\:ss"),
-                        durationMinutes = Math.Round((c.EndTime - c.StartTime).TotalMinutes, 2)
-                    }).ToList()
-                };
-                return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-            }
-
-            return $"Failed to generate chapters: {result.Message} - {result.ErrorDetails}";
+                    index = c.Index + 1,
+                    title = c.Title,
+                    startTime = c.StartTime.ToString(@"hh\:mm\:ss"),
+                    endTime = c.EndTime.ToString(@"hh\:mm\:ss"),
+                    durationMinutes = Math.Round((c.EndTime - c.StartTime).TotalMinutes, 2)
+                }).ToList() : null
+            };
+            return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating equal chapters for {FilePath}", filePath);
-            return $"Error generating chapters: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error generating chapters: {ex.Message}" });
         }
     }
 
@@ -208,7 +198,7 @@ public class AudioChapterTools
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating chapters by silence for {FilePath}", filePath);
-            return $"Error generating chapters: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error generating chapters: {ex.Message}" });
         }
     }
 
@@ -231,23 +221,18 @@ public class AudioChapterTools
 
             var result = await _ffmpegService.ConvertFileAsync(filePath, outputPath, options);
 
-            if (result.Success)
+            var response = new
             {
-                var response = new
-                {
-                    success = true,
-                    message = "Chapters removed successfully",
-                    outputFiles = result.OutputFiles
-                };
-                return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-            }
-
-            return $"Failed to remove chapters: {result.Message} - {result.ErrorDetails}";
+                success = result.Success,
+                message = result.Success ? "Chapters removed successfully" : $"Failed to remove chapters: {result.Message} - {result.ErrorDetails}",
+                outputFiles = result.OutputFiles
+            };
+            return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error removing chapters for {FilePath}", filePath);
-            return $"Error removing chapters: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error removing chapters: {ex.Message}" });
         }
     }
 
@@ -261,10 +246,10 @@ public class AudioChapterTools
         {
             var fileInfo = await _ffmpegService.GetFileInfoAsync(filePath);
             if (fileInfo == null)
-                return $"Could not analyze audio file: {filePath}";
+                return JsonSerializer.Serialize(new { success = false, message = $"Could not analyze audio file: {filePath}" });
 
             if (!fileInfo.Chapters.Any())
-                return "No chapters found in the audio file";
+                return JsonSerializer.Serialize(new { success = false, message = "No chapters found in the audio file" });
 
             outputPath ??= GenerateChapterExportPath(filePath, format);
 
@@ -333,7 +318,7 @@ public class AudioChapterTools
                     break;
 
                 default:
-                    return $"Unsupported export format: {format}. Supported formats: json, csv, txt, cue";
+                    return JsonSerializer.Serialize(new { success = false, message = $"Unsupported export format: {format}. Supported formats: json, csv, txt, cue" });
             }
 
             await File.WriteAllTextAsync(outputPath, content);
@@ -352,7 +337,7 @@ public class AudioChapterTools
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error exporting chapter info for {FilePath}", filePath);
-            return $"Error exporting chapter info: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error exporting chapter info: {ex.Message}" });
         }
     }
 
