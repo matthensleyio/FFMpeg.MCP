@@ -9,6 +9,7 @@ using System.IO;
 using Serilog;
 using System.Diagnostics;
 using FFMpeg.MCP.Host.Services;
+using FFMpeg.MCP.Host.Mcp;
 
 namespace FFMpeg.MCP.Host
 {
@@ -41,6 +42,7 @@ namespace FFMpeg.MCP.Host
             builder.Services
                 .AddHttpClient()
                 .AddScoped<IFFmpegService, FFmpegService>()
+                .AddScoped<McpDispatcher>()
                 .AddMcpServer()
                 .WithStdioServerTransport()
                 .WithToolsFromAssembly();

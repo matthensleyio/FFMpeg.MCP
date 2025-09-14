@@ -4,71 +4,93 @@ using FFMpeg.MCP.Host.Models;
 using FFMpeg.MCP.Host.Services;
 using System.ComponentModel;
 using System.Text.Json;
+using FFMpeg.MCP.Host.Mcp;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace FFMpeg.MCP.Host.Tools;
+
+#region Response Models
+public class UpdateMetadataResponse
+{
+    public string? Message { get; set; }
+    public string[]? OutputFiles { get; set; }
+    public string[]? UpdatedFields { get; set; }
+}
+
+public class SupportedFormatsResponse
+{
+    public List<string>? SupportedFormats { get; set; }
+    public int Count { get; set; }
+}
+
+public class FFmpegAvailabilityResponse
+{
+    public bool FfmpegAvailable { get; set; }
+    public string? Message { get; set; }
+}
+#endregion
 
 [McpServerToolType]
 public class AudioMetadataTools
 {
     private readonly IFFmpegService _ffmpegService;
     private readonly ILogger<AudioMetadataTools> _logger;
+    private readonly McpDispatcher _dispatcher;
 
-    public AudioMetadataTools(IFFmpegService ffmpegService, ILogger<AudioMetadataTools> logger)
+    public AudioMetadataTools(IFFmpegService ffmpegService, ILogger<AudioMetadataTools> logger, McpDispatcher dispatcher)
     {
         _ffmpegService = ffmpegService;
         _logger = logger;
+        _dispatcher = dispatcher;
     }
 
     [McpServerTool, Description("Get comprehensive metadata and information about an audio file")]
-    public async Task<string> GetAudioFileInfoAsync(
+    public Task<McpResponse<AudioFileInfo>> GetAudioFileInfoAsync(
         [Description("Full path to the audio file")] string filePath)
     {
-        try
+        return _dispatcher.DispatchAsync(async () =>
         {
-            var fileInfo = await _ffmpegService.GetFileInfoAsync(filePath);
-            if (fileInfo == null)
-                return JsonSerializer.Serialize(new { success = false, message = $"Could not analyze audio file: {filePath}" });
+            if (string.IsNullOrWhiteSpace(filePath)) throw new ArgumentException("File path is required.", nameof(filePath));
+            if (!File.Exists(filePath)) throw new FileNotFoundException("Audio file not found.", filePath);
 
-            return JsonSerializer.Serialize(fileInfo, new JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting audio file info for {FilePath}", filePath);
-            return JsonSerializer.Serialize(new { success = false, message = $"Error retrieving file information: {ex.Message}" });
-        }
+            var fileInfo = await _ffmpegService.GetFileInfoAsync(filePath);
+            if (fileInfo == null) throw new InvalidOperationException($"Could not analyze audio file: {filePath}");
+
+            return fileInfo;
+        });
     }
 
     [McpServerTool, Description("Update metadata tags for an audio file")]
-    public async Task<string> UpdateAudioMetadataAsync(
+    public Task<McpResponse<UpdateMetadataResponse>> UpdateAudioMetadataAsync(
         [Description("Full path to the audio file")] string filePath,
         [Description("JSON object containing metadata key-value pairs")] string metadataJson,
         [Description("Output file path (optional - will generate if not provided)")] string? outputPath = null)
     {
-        try
+        return _dispatcher.DispatchAsync(async () =>
         {
+            if (string.IsNullOrWhiteSpace(filePath)) throw new ArgumentException("File path is required.", nameof(filePath));
+            if (!File.Exists(filePath)) throw new FileNotFoundException("Audio file not found.", filePath);
+
             var metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(metadataJson);
-            if (metadata == null)
-                return JsonSerializer.Serialize(new { success = false, message = "Invalid metadata JSON provided" });
+            if (metadata == null) throw new ArgumentException("Invalid metadata JSON provided", nameof(metadataJson));
 
             var result = await _ffmpegService.UpdateMetadataAsync(filePath, metadata, outputPath);
+            if (!result.Success) throw new InvalidOperationException($"Failed to update metadata: {result.Message}");
 
-            var response = new
+            return new UpdateMetadataResponse
             {
-                success = result.Success,
-                message = result.Message,
-                outputFiles = result.OutputFiles
+                Message = result.Message,
+                OutputFiles = result.OutputFiles.ToArray()
             };
-            return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating metadata for {FilePath}", filePath);
-            return JsonSerializer.Serialize(new { success = false, message = $"Error updating metadata: {ex.Message}" });
-        }
+        });
     }
 
     [McpServerTool, Description("Update specific common metadata fields for an audio file")]
-    public async Task<string> UpdateCommonMetadataAsync(
+    public Task<McpResponse<UpdateMetadataResponse>> UpdateCommonMetadataAsync(
         [Description("Full path to the audio file")] string filePath,
         [Description("Title of the audio")] string? title = null,
         [Description("Artist/author name")] string? artist = null,
@@ -79,10 +101,12 @@ public class AudioMetadataTools
         [Description("Comment")] string? comment = null,
         [Description("Output file path (optional)")] string? outputPath = null)
     {
-        try
+        return _dispatcher.DispatchAsync(async () =>
         {
-            var metadata = new Dictionary<string, string>();
+            if (string.IsNullOrWhiteSpace(filePath)) throw new ArgumentException("File path is required.", nameof(filePath));
+            if (!File.Exists(filePath)) throw new FileNotFoundException("Audio file not found.", filePath);
 
+            var metadata = new Dictionary<string, string>();
             if (!string.IsNullOrEmpty(title)) metadata["title"] = title;
             if (!string.IsNullOrEmpty(artist)) metadata["artist"] = artist;
             if (!string.IsNullOrEmpty(album)) metadata["album"] = album;
@@ -91,64 +115,45 @@ public class AudioMetadataTools
             if (!string.IsNullOrEmpty(track)) metadata["track"] = track;
             if (!string.IsNullOrEmpty(comment)) metadata["comment"] = comment;
 
-            if (!metadata.Any())
-                return JsonSerializer.Serialize(new { success = false, message = "No metadata fields provided to update" });
+            if (!metadata.Any()) throw new ArgumentException("No metadata fields provided to update");
 
             var result = await _ffmpegService.UpdateMetadataAsync(filePath, metadata, outputPath);
+            if (!result.Success) throw new InvalidOperationException($"Failed to update metadata: {result.Message}");
 
-            var response = new
+            return new UpdateMetadataResponse
             {
-                success = result.Success,
-                message = result.Message,
-                updatedFields = result.Success ? metadata.Keys.ToArray() : null,
-                outputFiles = result.OutputFiles
+                Message = result.Message,
+                UpdatedFields = metadata.Keys.ToArray(),
+                OutputFiles = result.OutputFiles.ToArray()
             };
-            return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating common metadata for {FilePath}", filePath);
-            return JsonSerializer.Serialize(new { success = false, message = $"Error updating metadata: {ex.Message}" });
-        }
+        });
     }
 
     [McpServerTool, Description("List all supported audio formats")]
-    public async Task<string> GetSupportedFormatsAsync()
+    public Task<McpResponse<SupportedFormatsResponse>> GetSupportedFormatsAsync()
     {
-        try
+        return _dispatcher.DispatchAsync(async () =>
         {
             var formats = await _ffmpegService.GetSupportedFormatsAsync();
-            var response = new
+            return new SupportedFormatsResponse
             {
-                supportedFormats = formats,
-                count = formats.Count
+                SupportedFormats = formats,
+                Count = formats.Count
             };
-            return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting supported formats");
-            return $"Error retrieving supported formats: {ex.Message}";
-        }
+        });
     }
 
     [McpServerTool, Description("Check if FFmpeg is available and working")]
-    public async Task<string> CheckFFmpegAvailabilityAsync()
+    public Task<McpResponse<FFmpegAvailabilityResponse>> CheckFFmpegAvailabilityAsync()
     {
-        try
+        return _dispatcher.DispatchAsync(async () =>
         {
             var isAvailable = await _ffmpegService.IsFFmpegAvailableAsync();
-            var response = new
+            return new FFmpegAvailabilityResponse
             {
-                ffmpegAvailable = isAvailable,
-                message = isAvailable ? "FFmpeg is available and working" : "FFmpeg is not available or not working"
+                FfmpegAvailable = isAvailable,
+                Message = isAvailable ? "FFmpeg is available and working" : "FFmpeg is not available or not working"
             };
-            return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error checking FFmpeg availability");
-            return JsonSerializer.Serialize(new { success = false, message = $"Error checking FFmpeg availability: {ex.Message}" });
-        }
+        });
     }
 }

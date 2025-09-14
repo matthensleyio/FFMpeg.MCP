@@ -1,3 +1,4 @@
+using FFMpeg.MCP.Host.Mcp;
 using FFMpeg.MCP.Host.Tools;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -15,12 +16,14 @@ public class IntegrationWorkflowTests : TestBase
     public IntegrationWorkflowTests()
     {
         var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        var dispatcherLogger = loggerFactory.CreateLogger<McpDispatcher>();
+        var dispatcher = new McpDispatcher(dispatcherLogger);
 
         _metadataTools = new AudioMetadataTools(FFmpegService, loggerFactory.CreateLogger<AudioMetadataTools>());
         _splittingTools = new AudioSplittingTools(FFmpegService, loggerFactory.CreateLogger<AudioSplittingTools>());
         _conversionTools = new AudioConversionTools(FFmpegService, loggerFactory.CreateLogger<AudioConversionTools>());
-        _chapterTools = new AudioChapterTools(FFmpegService, loggerFactory.CreateLogger<AudioChapterTools>());
-        _backupTools = new AudioBackupTools(FFmpegService, loggerFactory.CreateLogger<AudioBackupTools>());
+        _chapterTools = new AudioChapterTools(FFmpegService, loggerFactory.CreateLogger<AudioChapterTools>(), dispatcher);
+        _backupTools = new AudioBackupTools(FFmpegService, loggerFactory.CreateLogger<AudioBackupTools>(), dispatcher);
     }
 
     [Fact]
@@ -49,13 +52,13 @@ public class IntegrationWorkflowTests : TestBase
         var originalFile = CopyTestFile("long-form.mp3");
 
         // Step 1: Backup the original file
-        var backupResult = await _backupTools.CreateAudioBackupAsync(originalFile);
-        var backupResponse = JsonSerializer.Deserialize<JsonElement>(backupResult);
-        if (backupResponse.GetProperty("success").GetBoolean())
-        {
-            var backupFile = backupResponse.GetProperty("backupFile").GetString();
-            TrackCreatedFile(backupFile!);
-        }
+        var backupResponse = await _backupTools.CreateAudioBackupAsync(originalFile);
+        Assert.NotNull(backupResponse);
+        Assert.Null(backupResponse.Error);
+        Assert.NotNull(backupResponse.Result);
+        Assert.NotNull(backupResponse.Result.BackupFile);
+        TrackCreatedFile(backupResponse.Result.BackupFile);
+
 
         // Step 2: Get file info
         var fileInfoResult = await _metadataTools.GetAudioFileInfoAsync(originalFile);
@@ -82,19 +85,18 @@ public class IntegrationWorkflowTests : TestBase
 
         // Step 4: Generate equal chapters
         var chaptersFile = GetWorkingPath("with-chapters.mp3");
-        var chapterResult = await _chapterTools.GenerateEqualChaptersAsync(
+        var chapterResponse = await _chapterTools.GenerateEqualChaptersAsync(
             updatedFile,
             chapterDurationMinutes: 3.0,
             titlePattern: "Chapter {index}",
             outputPath: chaptersFile
         );
 
-        var chapterResponse = JsonSerializer.Deserialize<JsonElement>(chapterResult);
-        if (chapterResponse.TryGetProperty("success", out var chapterSuccessProp) && chapterSuccessProp.GetBoolean())
-        {
-            AssertFileExists(chaptersFile);
-            Assert.True(chapterResponse.GetProperty("chaptersGenerated").GetInt32() > 0);
-        }
+        Assert.NotNull(chapterResponse);
+        Assert.Null(chapterResponse.Error);
+        Assert.NotNull(chapterResponse.Result);
+        AssertFileExists(chaptersFile);
+        Assert.True(chapterResponse.Result.ChaptersGenerated > 0);
 
         // Step 5: Split by chapters (if chapters were successfully added)
         if (File.Exists(chaptersFile))
@@ -120,18 +122,13 @@ public class IntegrationWorkflowTests : TestBase
         // Step 6: Export chapter information
         if (File.Exists(chaptersFile))
         {
-            var exportResult = await _chapterTools.ExportChapterInfoAsync(chaptersFile, format: "json");
-            var exportResponse = JsonSerializer.Deserialize<JsonElement>(exportResult);
-
-            if (exportResponse.TryGetProperty("success", out var exportSuccessProp) && exportSuccessProp.GetBoolean())
-            {
-                var exportFile = exportResponse.GetProperty("outputFile").GetString();
-                if (!string.IsNullOrEmpty(exportFile))
-                {
-                    TrackCreatedFile(exportFile);
-                    AssertFileExists(exportFile);
-                }
-            }
+            var exportResponse = await _chapterTools.ExportChapterInfoAsync(chaptersFile, format: "json");
+            Assert.NotNull(exportResponse);
+            Assert.Null(exportResponse.Error);
+            Assert.NotNull(exportResponse.Result);
+            Assert.NotNull(exportResponse.Result.OutputFile);
+            TrackCreatedFile(exportResponse.Result.OutputFile);
+            AssertFileExists(exportResponse.Result.OutputFile);
         }
 
         // Assert: Verify the workflow completed without critical errors
@@ -198,25 +195,21 @@ public class IntegrationWorkflowTests : TestBase
 
         // Step 1: Create batch backup
         var filePaths = JsonSerializer.Serialize(new[] { file1, file2 });
-        var batchBackupResult = await _backupTools.CreateBatchBackupAsync(filePaths);
-        var backupResponse = JsonSerializer.Deserialize<JsonElement>(batchBackupResult);
+        var batchBackupResponse = await _backupTools.CreateBatchBackupAsync(filePaths);
+        Assert.NotNull(batchBackupResponse);
+        Assert.Null(batchBackupResponse.Error);
+        Assert.NotNull(batchBackupResponse.Result);
+        Assert.NotNull(batchBackupResponse.Result.Results);
 
-        if (backupResponse.GetProperty("success").GetBoolean())
+        foreach(var result in batchBackupResponse.Result.Results)
         {
-            // Track backup files for cleanup
-            var results = backupResponse.GetProperty("results").EnumerateArray();
-            foreach (var result in results)
+            if(result.Success)
             {
-                if (result.GetProperty("success").GetBoolean())
-                {
-                    var backupFile = result.GetProperty("backupFile").GetString();
-                    if (!string.IsNullOrEmpty(backupFile))
-                    {
-                        TrackCreatedFile(backupFile);
-                    }
-                }
+                Assert.NotNull(result.BackupFile);
+                TrackCreatedFile(result.BackupFile);
             }
         }
+
 
         // Step 2: Batch convert to MP3
         var outputDir = Path.Combine(WorkingDirectory, "batch-converted");
@@ -254,15 +247,15 @@ public class IntegrationWorkflowTests : TestBase
             var archiveFilePaths = JsonSerializer.Serialize(convertedFiles);
             var archivePath = GetWorkingPath("batch-archive.zip");
 
-            var archiveResult = await _backupTools.CreateArchiveBackupAsync(
+            var archiveResponse = await _backupTools.CreateArchiveBackupAsync(
                 archiveFilePaths, archivePath);
-            var archiveResponse = JsonSerializer.Deserialize<JsonElement>(archiveResult);
 
-            if (archiveResponse.GetProperty("success").GetBoolean())
-            {
-                AssertFileExists(archivePath);
-                Assert.True(archiveResponse.GetProperty("archiveSize").GetInt64() > 0);
-            }
+            Assert.NotNull(archiveResponse);
+            Assert.Null(archiveResponse.Error);
+            Assert.NotNull(archiveResponse.Result);
+
+            AssertFileExists(archivePath);
+            Assert.True(archiveResponse.Result.ArchiveSize > 0);
         }
     }
 
@@ -338,8 +331,12 @@ public class IntegrationWorkflowTests : TestBase
         var splitResult = await _splittingTools.SplitAudioByDurationAsync(nonExistentFile, 60);
         Assert.Contains("File not found", splitResult);
 
-        var backupResult = await _backupTools.CreateAudioBackupAsync(nonExistentFile);
-        Assert.Contains("File not found", backupResult);
+        var backupResponse = await _backupTools.CreateAudioBackupAsync(nonExistentFile);
+        Assert.NotNull(backupResponse);
+        Assert.Null(backupResponse.Result);
+        Assert.NotNull(backupResponse.Error);
+        Assert.Equal("not_found", backupResponse.Error.Code);
+
 
         // Test 2: Invalid JSON operations
         var validFile = CopyTestFile("sample-short.mp3");
@@ -347,11 +344,19 @@ public class IntegrationWorkflowTests : TestBase
         var invalidMetadataResult = await _metadataTools.UpdateAudioMetadataAsync(validFile, "invalid json");
         Assert.Contains("Error updating metadata", invalidMetadataResult);
 
-        var invalidChapterResult = await _chapterTools.SetAudioChaptersAsync(validFile, "invalid json");
-        Assert.Contains("Error setting chapters", invalidChapterResult);
+        var invalidChapterResponse = await _chapterTools.SetAudioChaptersAsync(validFile, "invalid json");
+        Assert.NotNull(invalidChapterResponse);
+        Assert.Null(invalidChapterResponse.Result);
+        Assert.NotNull(invalidChapterResponse.Error);
+        Assert.Equal("internal_error", invalidChapterResponse.Error.Code);
 
-        var invalidBatchResult = await _backupTools.CreateBatchBackupAsync("invalid json");
-        Assert.Contains("Error in batch backup operation", invalidBatchResult);
+
+        var invalidBatchResponse = await _backupTools.CreateBatchBackupAsync("invalid json");
+        Assert.NotNull(invalidBatchResponse);
+        Assert.Null(invalidBatchResponse.Result);
+        Assert.NotNull(invalidBatchResponse.Error);
+        Assert.Equal("internal_error", invalidBatchResponse.Error.Code);
+
 
         // All error cases should be handled gracefully without throwing exceptions
         Assert.True(true, "All error cases handled gracefully");

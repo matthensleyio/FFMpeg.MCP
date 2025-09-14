@@ -1,6 +1,6 @@
+using FFMpeg.MCP.Host.Mcp;
 using FFMpeg.MCP.Host.Tools;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 using System.IO.Compression;
 
 namespace FFMpeg.MCP.Host.Tests;
@@ -12,7 +12,9 @@ public class AudioBackupToolsTests : TestBase
     public AudioBackupToolsTests()
     {
         var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<AudioBackupTools>();
-        _backupTools = new AudioBackupTools(FFmpegService, logger);
+        var dispatcherLogger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<McpDispatcher>();
+        var dispatcher = new McpDispatcher(dispatcherLogger);
+        _backupTools = new AudioBackupTools(FFmpegService, logger, dispatcher);
     }
 
     [Fact]
@@ -22,27 +24,23 @@ public class AudioBackupToolsTests : TestBase
         var inputFile = CopyTestFile("sample-short.mp3");
 
         // Act
-        var result = await _backupTools.CreateAudioBackupAsync(inputFile);
+        var response = await _backupTools.CreateAudioBackupAsync(inputFile);
 
         // Assert
-        Assert.NotNull(result);
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.NotNull(response);
+        Assert.Null(response.Error);
+        Assert.NotNull(response.Result);
 
-        if (response.GetProperty("success").GetBoolean())
-        {
-            var backupFile = response.GetProperty("backupFile").GetString();
-            Assert.NotNull(backupFile);
-            TrackCreatedFile(backupFile);
-            AssertFileExists(backupFile);
+        var result = response.Result;
+        Assert.NotNull(result.BackupFile);
+        TrackCreatedFile(result.BackupFile);
+        AssertFileExists(result.BackupFile);
 
-            // Verify backup has same size as original
-            var originalSize = GetFileSize(inputFile);
-            var backupSize = GetFileSize(backupFile);
-            Assert.Equal(originalSize, backupSize);
+        var originalSize = GetFileSize(inputFile);
+        var backupSize = GetFileSize(result.BackupFile);
+        Assert.Equal(originalSize, backupSize);
 
-            // Verify backup naming convention
-            Assert.Contains(".backup_", backupFile);
-        }
+        Assert.Contains(".backup_", result.BackupFile);
     }
 
     [Fact]
@@ -53,22 +51,20 @@ public class AudioBackupToolsTests : TestBase
         var customBackupPath = GetWorkingPath("custom-backup.mp3");
 
         // Act
-        var result = await _backupTools.CreateAudioBackupAsync(inputFile, customBackupPath);
+        var response = await _backupTools.CreateAudioBackupAsync(inputFile, customBackupPath);
 
         // Assert
-        Assert.NotNull(result);
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.NotNull(response);
+        Assert.Null(response.Error);
+        Assert.NotNull(response.Result);
 
-        if (response.GetProperty("success").GetBoolean())
-        {
-            var backupFile = response.GetProperty("backupFile").GetString();
-            Assert.Equal(customBackupPath, backupFile);
-            AssertFileExists(customBackupPath);
+        var result = response.Result;
+        Assert.Equal(customBackupPath, result.BackupFile);
+        AssertFileExists(customBackupPath);
 
-            var originalSize = GetFileSize(inputFile);
-            var backupSize = GetFileSize(customBackupPath);
-            Assert.Equal(originalSize, backupSize);
-        }
+        var originalSize = GetFileSize(inputFile);
+        var backupSize = GetFileSize(customBackupPath);
+        Assert.Equal(originalSize, backupSize);
     }
 
     [Fact]
@@ -77,70 +73,28 @@ public class AudioBackupToolsTests : TestBase
         // Arrange
         var inputFile1 = CopyTestFile("sample-short.mp3");
         var inputFile2 = CopyTestFile("sample-short.wav");
-        var filePaths = JsonSerializer.Serialize(new[] { inputFile1, inputFile2 });
+        var filePaths = System.Text.Json.JsonSerializer.Serialize(new[] { inputFile1, inputFile2 });
 
         // Act
-        var result = await _backupTools.CreateBatchBackupAsync(filePaths);
+        var response = await _backupTools.CreateBatchBackupAsync(filePaths);
 
         // Assert
-        Assert.NotNull(result);
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.NotNull(response);
+        Assert.Null(response.Error);
+        Assert.NotNull(response.Result);
 
-        if (response.GetProperty("success").GetBoolean())
+        var result = response.Result;
+        Assert.Equal(2, result.SuccessCount);
+        Assert.Equal(0, result.FailureCount);
+
+        Assert.NotNull(result.Results);
+        foreach (var fileResult in result.Results)
         {
-            Assert.Equal(2, response.GetProperty("successCount").GetInt32());
-            Assert.Equal(0, response.GetProperty("failureCount").GetInt32());
-
-            var results = response.GetProperty("results").EnumerateArray();
-            foreach (var fileResult in results)
+            if (fileResult.Success)
             {
-                if (fileResult.GetProperty("success").GetBoolean())
-                {
-                    var backupFile = fileResult.GetProperty("backupFile").GetString();
-                    if (!string.IsNullOrEmpty(backupFile))
-                    {
-                        TrackCreatedFile(backupFile);
-                        AssertFileExists(backupFile);
-                    }
-                }
-            }
-        }
-    }
-
-    [Fact]
-    public async Task CreateBatchBackupAsync_WithBackupDirectory_CreatesBackupsInDirectory()
-    {
-        // Arrange
-        var inputFile = CopyTestFile("sample-short.mp3");
-        var filePaths = JsonSerializer.Serialize(new[] { inputFile });
-        var backupDir = Path.Combine(WorkingDirectory, "backups");
-        Directory.CreateDirectory(backupDir);
-        TrackCreatedDirectory(backupDir);
-
-        // Act
-        var result = await _backupTools.CreateBatchBackupAsync(filePaths, backupDir);
-
-        // Assert
-        Assert.NotNull(result);
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
-
-        if (response.GetProperty("success").GetBoolean())
-        {
-            Assert.Equal(backupDir, response.GetProperty("backupDirectory").GetString());
-
-            var results = response.GetProperty("results").EnumerateArray();
-            foreach (var fileResult in results)
-            {
-                if (fileResult.GetProperty("success").GetBoolean())
-                {
-                    var backupFile = fileResult.GetProperty("backupFile").GetString();
-                    if (!string.IsNullOrEmpty(backupFile))
-                    {
-                        TrackCreatedFile(backupFile);
-                        AssertFileExists(backupFile);
-                        Assert.StartsWith(backupDir, backupFile);
-                    }
-                }
+                Assert.NotNull(fileResult.BackupFile);
+                TrackCreatedFile(fileResult.BackupFile);
+                AssertFileExists(fileResult.BackupFile);
             }
         }
     }
@@ -151,132 +105,103 @@ public class AudioBackupToolsTests : TestBase
         // Arrange
         var inputFile1 = CopyTestFile("sample-short.mp3");
         var inputFile2 = CopyTestFile("sample-short.wav");
-        var filePaths = JsonSerializer.Serialize(new[] { inputFile1, inputFile2 });
+        var filePaths = System.Text.Json.JsonSerializer.Serialize(new[] { inputFile1, inputFile2 });
         var archivePath = GetWorkingPath("backup-archive.zip");
 
         // Act
-        var result = await _backupTools.CreateArchiveBackupAsync(filePaths, archivePath);
+        var response = await _backupTools.CreateArchiveBackupAsync(filePaths, archivePath);
 
         // Assert
-        Assert.NotNull(result);
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.NotNull(response);
+        Assert.Null(response.Error);
+        Assert.NotNull(response.Result);
 
-        if (response.GetProperty("success").GetBoolean())
+        var result = response.Result;
+        AssertFileExists(archivePath);
+        Assert.Equal(2, result.FilesIncluded);
+        Assert.True(result.ArchiveSize > 0);
+
+        using (var archive = ZipFile.OpenRead(archivePath))
         {
-            AssertFileExists(archivePath);
-            Assert.Equal(2, response.GetProperty("filesIncluded").GetInt32());
-            Assert.True(response.GetProperty("archiveSize").GetInt64() > 0);
-
-            // Verify archive contents
-            using (var archive = ZipFile.OpenRead(archivePath))
-            {
-                Assert.True(archive.Entries.Count >= 2);
-                Assert.Contains(archive.Entries, e => e.Name.EndsWith(".mp3"));
-                Assert.Contains(archive.Entries, e => e.Name.EndsWith(".wav"));
-
-                // Check for metadata file
-                Assert.Contains(archive.Entries, e => e.Name == "metadata.json");
-            }
+            Assert.Equal(2, archive.Entries.Count);
+            Assert.Contains(archive.Entries, e => e.Name.EndsWith(".mp3"));
+            Assert.Contains(archive.Entries, e => e.Name.EndsWith(".wav"));
         }
     }
 
     [Fact]
     public async Task RestoreFromBackupAsync_WithValidBackup_RestoresFile()
     {
-        // Arrange - First create a backup
+        // Arrange
         var originalFile = CopyTestFile("sample-short.mp3");
-        var backupResult = await _backupTools.CreateAudioBackupAsync(originalFile);
-        var backupResponse = JsonSerializer.Deserialize<JsonElement>(backupResult);
-        var backupFile = backupResponse.GetProperty("backupFile").GetString();
-
-        Assert.NotNull(backupFile);
+        var backupResponse = await _backupTools.CreateAudioBackupAsync(originalFile);
+        Assert.NotNull(backupResponse.Result?.BackupFile);
+        var backupFile = backupResponse.Result.BackupFile;
         TrackCreatedFile(backupFile);
-
         var restorePath = GetWorkingPath("restored-file.mp3");
 
         // Act
-        var result = await _backupTools.RestoreFromBackupAsync(backupFile, restorePath);
+        var response = await _backupTools.RestoreFromBackupAsync(backupFile, restorePath);
 
         // Assert
-        Assert.NotNull(result);
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.NotNull(response);
+        Assert.Null(response.Error);
+        Assert.NotNull(response.Result);
 
-        if (response.GetProperty("success").GetBoolean())
-        {
-            var restoredFile = response.GetProperty("restoredFile").GetString();
-            Assert.Equal(restorePath, restoredFile);
-            AssertFileExists(restorePath);
+        var result = response.Result;
+        Assert.Equal(restorePath, result.RestoredFile);
+        AssertFileExists(restorePath);
 
-            // Verify restored file has same size as original
-            var originalSize = GetFileSize(originalFile);
-            var restoredSize = GetFileSize(restorePath);
-            Assert.Equal(originalSize, restoredSize);
-        }
+        var originalSize = GetFileSize(originalFile);
+        var restoredSize = GetFileSize(restorePath);
+        Assert.Equal(originalSize, restoredSize);
     }
 
     [Fact]
     public async Task ListBackupsAsync_WithBackupsInDirectory_ListsBackups()
     {
-        // Arrange - Create some backup files first
+        // Arrange
         var inputFile = CopyTestFile("sample-short.mp3");
         await _backupTools.CreateAudioBackupAsync(inputFile);
 
         // Act
-        var result = await _backupTools.ListBackupsAsync(WorkingDirectory, includeSubdirectories: false);
+        var response = await _backupTools.ListBackupsAsync(WorkingDirectory, includeSubdirectories: false);
 
         // Assert
-        Assert.NotNull(result);
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.NotNull(response);
+        Assert.Null(response.Error);
+        Assert.NotNull(response.Result);
 
-        if (response.GetProperty("success").GetBoolean())
-        {
-            Assert.Equal(WorkingDirectory, response.GetProperty("directory").GetString());
-            Assert.False(response.GetProperty("includeSubdirectories").GetBoolean());
-
-            var backupCount = response.GetProperty("backupCount").GetInt32();
-            if (backupCount > 0)
-            {
-                var backups = response.GetProperty("backups").EnumerateArray();
-                Assert.True(backups.Any());
-
-                foreach (var backup in backups)
-                {
-                    Assert.True(backup.TryGetProperty("backupFile", out _));
-                    Assert.True(backup.TryGetProperty("originalFileName", out _));
-                    Assert.True(backup.TryGetProperty("backupTimestamp", out _));
-                    Assert.True(backup.TryGetProperty("fileSize", out _));
-                }
-            }
-        }
+        var result = response.Result;
+        Assert.Equal(WorkingDirectory, result.Directory);
+        Assert.False(result.IncludeSubdirectories);
+        Assert.True(result.BackupCount > 0);
+        Assert.NotEmpty(result.Backups);
     }
 
     [Fact]
     public async Task CleanupBackupsAsync_WithDryRun_ReportsWhatWouldBeDeleted()
     {
-        // Arrange - Create a backup file first
+        // Arrange
         var inputFile = CopyTestFile("sample-short.mp3");
-        var backupResult = await _backupTools.CreateAudioBackupAsync(inputFile);
-        var backupResponse = JsonSerializer.Deserialize<JsonElement>(backupResult);
-        var backupFile = backupResponse.GetProperty("backupFile").GetString();
-
-        Assert.NotNull(backupFile);
+        var backupResponse = await _backupTools.CreateAudioBackupAsync(inputFile);
+        Assert.NotNull(backupResponse.Result?.BackupFile);
+        var backupFile = backupResponse.Result.BackupFile;
         TrackCreatedFile(backupFile);
 
-        // Act - Dry run cleanup (should not actually delete anything)
-        var result = await _backupTools.CleanupBackupsAsync(WorkingDirectory, maxAgeDays: 0, maxBackupsPerFile: null, dryRun: true);
+        // Act
+        var response = await _backupTools.CleanupBackupsAsync(WorkingDirectory, maxAgeDays: 0, dryRun: true);
 
         // Assert
-        Assert.NotNull(result);
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.NotNull(response);
+        Assert.Null(response.Error);
+        Assert.NotNull(response.Result);
 
-        if (response.GetProperty("success").GetBoolean())
-        {
-            Assert.True(response.GetProperty("dryRun").GetBoolean());
-            Assert.Contains("Would delete", response.GetProperty("message").GetString());
+        var result = response.Result;
+        Assert.True(result.DryRun);
+        Assert.Contains("Would delete", result.Message);
 
-            // File should still exist after dry run
-            AssertFileExists(backupFile);
-        }
+        AssertFileExists(backupFile);
     }
 
     [Fact]
@@ -286,10 +211,14 @@ public class AudioBackupToolsTests : TestBase
         var nonExistentFile = GetWorkingPath("nonexistent.mp3");
 
         // Act
-        var result = await _backupTools.CreateAudioBackupAsync(nonExistentFile);
+        var response = await _backupTools.CreateAudioBackupAsync(nonExistentFile);
 
         // Assert
-        Assert.Contains("File not found", result);
+        Assert.NotNull(response);
+        Assert.Null(response.Result);
+        Assert.NotNull(response.Error);
+        Assert.Equal("not_found", response.Error.Code);
+        Assert.Contains("not found", response.Error.Message);
     }
 
     [Fact]
@@ -299,12 +228,13 @@ public class AudioBackupToolsTests : TestBase
         var invalidJson = "{ invalid json }";
 
         // Act
-        var result = await _backupTools.CreateBatchBackupAsync(invalidJson);
+        var response = await _backupTools.CreateBatchBackupAsync(invalidJson);
 
         // Assert
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
-        Assert.False(response.GetProperty("success").GetBoolean());
-        Assert.Contains("Error in batch backup operation", response.GetProperty("message").GetString());
+        Assert.NotNull(response);
+        Assert.Null(response.Result);
+        Assert.NotNull(response.Error);
+        Assert.Equal("internal_error", response.Error.Code); // JSON deserialization error
     }
 
     [Fact]
@@ -315,12 +245,13 @@ public class AudioBackupToolsTests : TestBase
         var archivePath = GetWorkingPath("test.zip");
 
         // Act
-        var result = await _backupTools.CreateArchiveBackupAsync(invalidJson, archivePath);
+        var response = await _backupTools.CreateArchiveBackupAsync(invalidJson, archivePath);
 
         // Assert
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
-        Assert.False(response.GetProperty("success").GetBoolean());
-        Assert.Contains("Error creating archive backup", response.GetProperty("message").GetString());
+        Assert.NotNull(response);
+        Assert.Null(response.Result);
+        Assert.NotNull(response.Error);
+        Assert.Equal("internal_error", response.Error.Code); // JSON deserialization error
     }
 
     [Fact]
@@ -331,12 +262,14 @@ public class AudioBackupToolsTests : TestBase
         var restorePath = GetWorkingPath("restored.mp3");
 
         // Act
-        var result = await _backupTools.RestoreFromBackupAsync(nonExistentBackup, restorePath);
+        var response = await _backupTools.RestoreFromBackupAsync(nonExistentBackup, restorePath);
 
         // Assert
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
-        Assert.False(response.GetProperty("success").GetBoolean());
-        Assert.Contains("not found", response.GetProperty("message").GetString());
+        Assert.NotNull(response);
+        Assert.Null(response.Result);
+        Assert.NotNull(response.Error);
+        Assert.Equal("not_found", response.Error.Code);
+        Assert.Contains("not found", response.Error.Message);
     }
 
     [Fact]
@@ -346,11 +279,13 @@ public class AudioBackupToolsTests : TestBase
         var nonExistentDir = GetWorkingPath("nonexistent-dir");
 
         // Act
-        var result = await _backupTools.ListBackupsAsync(nonExistentDir);
+        var response = await _backupTools.ListBackupsAsync(nonExistentDir);
 
         // Assert
-        var response = JsonSerializer.Deserialize<JsonElement>(result);
-        Assert.False(response.GetProperty("success").GetBoolean());
-        Assert.Contains("Directory not found", response.GetProperty("message").GetString());
+        Assert.NotNull(response);
+        Assert.Null(response.Result);
+        Assert.NotNull(response.Error);
+        Assert.Equal("not_found", response.Error.Code);
+        Assert.Contains("not found", response.Error.Message);
     }
 }
