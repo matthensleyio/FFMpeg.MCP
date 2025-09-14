@@ -1,8 +1,7 @@
-using FFMpegCore;
-using FFMpegCore.Enums;
 using Microsoft.Extensions.Logging;
 using FFMpeg.MCP.Host.Models;
 using System.Text.Json;
+using System.Diagnostics;
 
 namespace FFMpeg.MCP.Host.Services;
 
@@ -27,22 +26,37 @@ public class FFmpegService : IFFmpegService
         _logger = logger;
     }
 
+    private async Task<ProcessExecutionResult> ExecuteFFmpegProcess(string executable, string arguments)
+    {
+        var processStartInfo = new ProcessStartInfo
+        {
+            FileName = executable,
+            Arguments = arguments,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+
+        using var process = new Process { StartInfo = processStartInfo };
+        process.Start();
+        var output = await process.StandardOutput.ReadToEndAsync();
+        var error = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+
+        if (process.ExitCode != 0)
+        {
+            _logger.LogError("FFmpeg process exited with code {ExitCode}: {Error}", process.ExitCode, error);
+            return new ProcessExecutionResult { Success = false, Output = output, Error = error };
+        }
+
+        return new ProcessExecutionResult { Success = true, Output = output, Error = error };
+    }
+
     public async Task<bool> IsFFmpegAvailableAsync()
     {
-        try
-        {
-            // Simple check by trying to get the version - this will fail if FFmpeg is not available
-            await Task.Run(() =>
-            {
-                var ffmpegPath = FFMpegCore.GlobalFFOptions.Current.BinaryFolder;
-                return true;
-            });
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        var result = await ExecuteFFmpegProcess("ffmpeg", "-version");
+        return result.Success;
     }
 
     public async Task<AudioFileInfo?> GetFileInfoAsync(string filePath)
@@ -57,31 +71,32 @@ public class FFmpegService : IFFmpegService
                 return null;
             }
 
-            // Set FFmpeg and FFprobe binaries path
-            GlobalFFOptions.Configure(options =>
-            {
-                options.BinaryFolder = Path.Combine(AppContext.BaseDirectory, "assets", "ffmpeg");
-            });
+            var arguments = $"-v quiet -print_format json -show_format -show_streams \"{filePath}\"";
+            var result = await ExecuteFFmpegProcess("ffprobe", arguments);
 
-            var mediaInfo = await FFProbe.AnalyseAsync(filePath);
+            if (!result.Success)
+            {
+                _logger.LogError("ffprobe failed for {FilePath}: {Error}", filePath, result.Error);
+                return null;
+            }
+
+            var ffprobeResult = JsonSerializer.Deserialize<FFProbeResult>(result.Output);
+
+            if (ffprobeResult?.Format == null)
+            {
+                _logger.LogWarning("Could not parse ffprobe output for {FilePath}", filePath);
+                return null;
+            }
 
             var audioFileInfo = new AudioFileInfo
             {
                 FilePath = filePath,
                 FileName = Path.GetFileName(filePath),
-                Duration = mediaInfo.Duration,
-                Format = mediaInfo.Format.FormatName,
-                FileSizeBytes = new FileInfo(filePath).Length
+                Duration = TimeSpan.FromSeconds(double.Parse(ffprobeResult.Format.Duration ?? "0")),
+                Format = ffprobeResult.Format.FormatName ?? string.Empty,
+                FileSizeBytes = new FileInfo(filePath).Length,
+                Metadata = ffprobeResult.Format.Tags ?? new Dictionary<string, string>()
             };
-
-            // Extract metadata
-            if (mediaInfo.Format.Tags != null)
-            {
-                foreach (var tag in mediaInfo.Format.Tags)
-                {
-                    audioFileInfo.Metadata[tag.Key] = tag.Value;
-                }
-            }
 
             _logger.LogInformation("Successfully retrieved file info for: {FilePath}", filePath);
             return audioFileInfo;
@@ -110,19 +125,11 @@ public class FFmpegService : IFFmpegService
 
             outputPath ??= GenerateOutputPath(filePath, "_updated");
 
-            var arguments = FFMpegArguments.FromFileInput(filePath);
+            var metadataArgs = string.Join(" ", metadata.Select(kvp => $"-metadata \"{kvp.Key}={kvp.Value}\""));
+            var arguments = $"-i \"{filePath}\" {metadataArgs} -c copy \"{outputPath}\"";
+            var result = await ExecuteFFmpegProcess("ffmpeg", arguments);
 
-            var success = await arguments
-                .OutputToFile(outputPath, false, outputOptions =>
-                {
-                    foreach (var kvp in metadata)
-                    {
-                        outputOptions.WithCustomArgument($"-metadata {kvp.Key}=\"{kvp.Value}\"");
-                    }
-                })
-                .ProcessAsynchronously();
-
-            if (success)
+            if (result.Success)
             {
                 _logger.LogInformation("Successfully updated metadata for: {FilePath}", filePath);
                 return new OperationResult
@@ -136,7 +143,8 @@ public class FFmpegService : IFFmpegService
             return new OperationResult
             {
                 Success = false,
-                Message = "Failed to update metadata"
+                Message = "Failed to update metadata",
+                ErrorDetails = result.Error
             };
         }
         catch (Exception ex)
@@ -185,16 +193,10 @@ public class FFmpegService : IFFmpegService
                 {
                     var chapter = fileInfo.Chapters[i];
                     var outputPath = GenerateChapterOutputPath(filePath, i + 1, chapter.Title, options.OutputPattern);
+                    var arguments = $"-i \"{filePath}\" -ss {chapter.StartTime} -to {chapter.EndTime} -c copy \"{outputPath}\"";
+                    var result = await ExecuteFFmpegProcess("ffmpeg", arguments);
 
-                    var success = await FFMpegArguments
-                        .FromFileInput(filePath)
-                        .OutputToFile(outputPath, false, outputOptions => outputOptions
-                            .Seek(chapter.StartTime)
-                            .WithDuration(chapter.EndTime - chapter.StartTime)
-                            .CopyChannel())
-                        .ProcessAsynchronously();
-
-                    if (success)
+                    if (result.Success)
                     {
                         outputFiles.Add(outputPath);
                     }
@@ -219,16 +221,10 @@ public class FFmpegService : IFFmpegService
                         : maxDuration;
 
                     var outputPath = GenerateSegmentOutputPath(filePath, i + 1, options.OutputPattern);
+                    var arguments = $"-i \"{filePath}\" -ss {startTime} -t {duration} -c copy \"{outputPath}\"";
+                    var result = await ExecuteFFmpegProcess("ffmpeg", arguments);
 
-                    var success = await FFMpegArguments
-                        .FromFileInput(filePath)
-                        .OutputToFile(outputPath, false, outputOptions => outputOptions
-                            .Seek(startTime)
-                            .WithDuration(duration)
-                            .CopyChannel())
-                        .ProcessAsynchronously();
-
-                    if (success)
+                    if (result.Success)
                     {
                         outputFiles.Add(outputPath);
                     }
@@ -283,34 +279,31 @@ public class FFmpegService : IFFmpegService
                 };
             }
 
-            var arguments = FFMpegArguments.FromFileInput(filePath);
+            var argsBuilder = new System.Text.StringBuilder();
+            argsBuilder.Append($"-i \"{filePath}\" ");
 
-            var success = await arguments
-                .OutputToFile(outputPath, true, outputOptions =>
-                {
-                    if (!string.IsNullOrEmpty(options.OutputFormat))
-                    {
-                        outputOptions.ForceFormat(options.OutputFormat);
-                    }
+            if (!string.IsNullOrEmpty(options.OutputFormat))
+            {
+                argsBuilder.Append($"-f {options.OutputFormat} ");
+            }
+            if (options.Bitrate.HasValue)
+            {
+                argsBuilder.Append($"-b:a {options.Bitrate.Value}k ");
+            }
+            if (!string.IsNullOrEmpty(options.Codec))
+            {
+                argsBuilder.Append($"-c:a {options.Codec} ");
+            }
+            foreach (var customOption in options.CustomOptions)
+            {
+                argsBuilder.Append($"{customOption.Key} {customOption.Value} ");
+            }
 
-                    if (options.Bitrate.HasValue)
-                    {
-                        outputOptions.WithAudioBitrate(options.Bitrate.Value);
-                    }
+            argsBuilder.Append($"\"{outputPath}\"");
 
-                    if (!string.IsNullOrEmpty(options.Codec))
-                    {
-                        outputOptions.WithAudioCodec(options.Codec);
-                    }
+            var result = await ExecuteFFmpegProcess("ffmpeg", argsBuilder.ToString());
 
-                    foreach (var customOption in options.CustomOptions)
-                    {
-                        outputOptions.WithCustomArgument($"{customOption.Key} {customOption.Value}");
-                    }
-                })
-                .ProcessAsynchronously();
-
-            if (success)
+            if (result.Success)
             {
                 _logger.LogInformation("Successfully converted file: {FilePath}", filePath);
                 return new OperationResult
@@ -324,7 +317,8 @@ public class FFmpegService : IFFmpegService
             return new OperationResult
             {
                 Success = false,
-                Message = "Failed to convert file"
+                Message = "Failed to convert file",
+                ErrorDetails = result.Error
             };
         }
         catch (Exception ex)
@@ -363,15 +357,10 @@ public class FFmpegService : IFFmpegService
 
             try
             {
-                var success = await FFMpegArguments
-                    .FromFileInput(filePath)
-                    .OutputToFile(outputPath, false, outputOptions => outputOptions
-                        .WithCustomArgument($"-i \"{chapterFilePath}\"")
-                        .WithCustomArgument("-map_chapters 1")
-                        .CopyChannel())
-                    .ProcessAsynchronously();
+                var arguments = $"-i \"{filePath}\" -i \"{chapterFilePath}\" -map_metadata 1 -map_chapters 1 -c copy \"{outputPath}\"";
+                var result = await ExecuteFFmpegProcess("ffmpeg", arguments);
 
-                if (success)
+                if (result.Success)
                 {
                     _logger.LogInformation("Successfully set chapters for: {FilePath}", filePath);
                     return new OperationResult
@@ -385,7 +374,8 @@ public class FFmpegService : IFFmpegService
                 return new OperationResult
                 {
                     Success = false,
-                    Message = "Failed to set chapters"
+                    Message = "Failed to set chapters",
+                    ErrorDetails = result.Error
                 };
             }
             finally
