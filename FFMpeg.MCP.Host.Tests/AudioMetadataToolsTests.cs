@@ -46,7 +46,7 @@ public class AudioMetadataToolsTests : TestBase
         Assert.NotNull(response);
         Assert.Null(response.Result);
         Assert.NotNull(response.Error);
-        Assert.Equal("not_found", response.Error.Code);
+        Assert.Equal(McpErrorCodes.NotFound, response.Error.Code);
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class AudioMetadataToolsTests : TestBase
         Assert.NotNull(response);
         Assert.Null(response.Result);
         Assert.NotNull(response.Error);
-        Assert.Equal("internal_error", response.Error.Code);
+        Assert.Equal(McpErrorCodes.InternalError, response.Error.Code);
     }
 
     [Fact]

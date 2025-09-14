@@ -11,28 +11,28 @@ namespace FFMpeg.MCP.Host.Mcp
             {
                 ArgumentException => new McpError
                 {
-                    Code = "invalid_argument",
+                    Code = McpErrorCodes.InvalidArgument,
                     Message = ex.Message
                 },
                 FileNotFoundException fnf => new McpError
                 {
-                    Code = "not_found",
+                    Code = McpErrorCodes.NotFound,
                     Message = fnf.Message,
                     Data = new { fnf.FileName }
                 },
                 DirectoryNotFoundException dnf => new McpError
                 {
-                    Code = "not_found",
+                    Code = McpErrorCodes.NotFound,
                     Message = dnf.Message,
                 },
                 UnauthorizedAccessException => new McpError
                 {
-                    Code = "unauthorized",
+                    Code = McpErrorCodes.Unauthorized,
                     Message = ex.Message
                 },
                 _ => new McpError
                 {
-                    Code = "internal_error",
+                    Code = McpErrorCodes.InternalError,
                     Message = ex.Message
                 }
             };

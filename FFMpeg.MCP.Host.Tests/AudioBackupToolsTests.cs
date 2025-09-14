@@ -218,7 +218,7 @@ public class AudioBackupToolsTests : TestBase
         Assert.NotNull(response);
         Assert.Null(response.Result);
         Assert.NotNull(response.Error);
-        Assert.Equal("not_found", response.Error.Code);
+        Assert.Equal(McpErrorCodes.NotFound, response.Error.Code);
         Assert.Contains("not found", response.Error.Message);
     }
 
@@ -235,7 +235,7 @@ public class AudioBackupToolsTests : TestBase
         Assert.NotNull(response);
         Assert.Null(response.Result);
         Assert.NotNull(response.Error);
-        Assert.Equal("internal_error", response.Error.Code); // JSON deserialization error
+        Assert.Equal(McpErrorCodes.InternalError, response.Error.Code); // JSON deserialization error
     }
 
     [Fact]
@@ -252,7 +252,7 @@ public class AudioBackupToolsTests : TestBase
         Assert.NotNull(response);
         Assert.Null(response.Result);
         Assert.NotNull(response.Error);
-        Assert.Equal("internal_error", response.Error.Code); // JSON deserialization error
+        Assert.Equal(McpErrorCodes.InternalError, response.Error.Code); // JSON deserialization error
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public class AudioBackupToolsTests : TestBase
         Assert.NotNull(response);
         Assert.Null(response.Result);
         Assert.NotNull(response.Error);
-        Assert.Equal("not_found", response.Error.Code);
+        Assert.Equal(McpErrorCodes.NotFound, response.Error.Code);
         Assert.Contains("not found", response.Error.Message);
     }
 
@@ -286,7 +286,7 @@ public class AudioBackupToolsTests : TestBase
         Assert.NotNull(response);
         Assert.Null(response.Result);
         Assert.NotNull(response.Error);
-        Assert.Equal("not_found", response.Error.Code);
+        Assert.Equal(McpErrorCodes.NotFound, response.Error.Code);
         Assert.Contains("not found", response.Error.Message);
     }
 }

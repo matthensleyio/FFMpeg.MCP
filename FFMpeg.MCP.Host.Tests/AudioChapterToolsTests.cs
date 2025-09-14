@@ -55,7 +55,7 @@ public class AudioChapterToolsTests : TestBase
         Assert.NotNull(response);
         Assert.Null(response.Result);
         Assert.NotNull(response.Error);
-        Assert.Equal("internal_error", response.Error.Code);
+        Assert.Equal(McpErrorCodes.InternalError, response.Error.Code);
         Assert.Contains("not yet fully implemented", response.Error.Message);
     }
 
@@ -109,7 +109,7 @@ public class AudioChapterToolsTests : TestBase
         Assert.NotNull(response);
         Assert.Null(response.Result);
         Assert.NotNull(response.Error);
-        Assert.Equal("internal_error", response.Error.Code);
+        Assert.Equal(McpErrorCodes.InternalError, response.Error.Code);
     }
 
     [Fact]
@@ -125,6 +125,6 @@ public class AudioChapterToolsTests : TestBase
         Assert.NotNull(response);
         Assert.Null(response.Result);
         Assert.NotNull(response.Error);
-        Assert.Equal("not_found", response.Error.Code);
+        Assert.Equal(McpErrorCodes.NotFound, response.Error.Code);
     }
 }
