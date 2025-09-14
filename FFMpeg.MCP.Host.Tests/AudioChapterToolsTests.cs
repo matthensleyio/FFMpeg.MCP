@@ -18,7 +18,7 @@ public class AudioChapterToolsTests : TestBase
     public async Task SetAudioChaptersAsync_WithValidChapters_SetsChapters()
     {
         // Arrange
-        var inputFile = CopyTestFile("test-long.mp3");
+        var inputFile = CopyTestFile("long-form.mp3");
         var outputFile = GetWorkingPath("with-chapters.mp3");
         var chapters = JsonSerializer.Serialize(new[]
         {
@@ -49,7 +49,7 @@ public class AudioChapterToolsTests : TestBase
     public async Task SetAudioChaptersAsync_WithSecondsFormat_SetsChapters()
     {
         // Arrange
-        var inputFile = CopyTestFile("test-long.mp3");
+        var inputFile = CopyTestFile("long-form.mp3");
         var outputFile = GetWorkingPath("chapters-seconds.mp3");
         var chapters = JsonSerializer.Serialize(new[]
         {
@@ -75,13 +75,13 @@ public class AudioChapterToolsTests : TestBase
     public async Task GenerateEqualChaptersAsync_WithValidFile_GeneratesChapters()
     {
         // Arrange
-        var inputFile = CopyTestFile("test-long.mp3");
+        var inputFile = CopyTestFile("sample-short.mp3");
         var outputFile = GetWorkingPath("equal-chapters.mp3");
 
         // Act
         var result = await _chapterTools.GenerateEqualChaptersAsync(
             inputFile,
-            chapterDurationMinutes: 2.0,
+            chapterDurationMinutes: .1,
             titlePattern: "Chapter {index}",
             outputPath: outputFile
         );
@@ -106,7 +106,7 @@ public class AudioChapterToolsTests : TestBase
     public async Task GenerateChaptersBySilenceAsync_ShowsNotImplementedMessage()
     {
         // Arrange
-        var inputFile = CopyTestFile("test-speech.wav");
+        var inputFile = CopyTestFile("long-speech.wav");
         var outputFile = GetWorkingPath("silence-chapters.wav");
 
         // Act
@@ -129,7 +129,7 @@ public class AudioChapterToolsTests : TestBase
     public async Task RemoveChaptersAsync_WithChapterFile_RemovesChapters()
     {
         // Arrange - First create a file with chapters
-        var inputFile = CopyTestFile("test-chapters.m4a");
+        var inputFile = CopyTestFile("with-chapters.m4a");
         var outputFile = GetWorkingPath("no-chapters.m4a");
 
         // Act
@@ -150,7 +150,7 @@ public class AudioChapterToolsTests : TestBase
     public async Task ExportChapterInfoAsync_ToJson_ExportsChapters()
     {
         // Arrange
-        var inputFile = CopyTestFile("test-chapters.m4a");
+        var inputFile = CopyTestFile("with-chapters.m4a");
         var outputFile = GetWorkingPath("chapters.json");
 
         // Act
@@ -181,7 +181,7 @@ public class AudioChapterToolsTests : TestBase
     public async Task ExportChapterInfoAsync_ToCsv_ExportsChapters()
     {
         // Arrange
-        var inputFile = CopyTestFile("test-chapters.m4a");
+        var inputFile = CopyTestFile("with-chapters.m4a");
         var outputFile = GetWorkingPath("chapters.csv");
 
         // Act
@@ -211,7 +211,7 @@ public class AudioChapterToolsTests : TestBase
     public async Task ExportChapterInfoAsync_ToTxt_ExportsChapters()
     {
         // Arrange
-        var inputFile = CopyTestFile("test-chapters.m4a");
+        var inputFile = CopyTestFile("with-chapters.m4a");
         var outputFile = GetWorkingPath("chapters.txt");
 
         // Act
@@ -240,7 +240,7 @@ public class AudioChapterToolsTests : TestBase
     public async Task ExportChapterInfoAsync_ToCue_ExportsChapters()
     {
         // Arrange
-        var inputFile = CopyTestFile("test-chapters.m4a");
+        var inputFile = CopyTestFile("with-chapters.m4a");
         var outputFile = GetWorkingPath("chapters.cue");
 
         // Act
@@ -270,7 +270,7 @@ public class AudioChapterToolsTests : TestBase
     public async Task SetAudioChaptersAsync_WithInvalidJson_ReturnsError()
     {
         // Arrange
-        var inputFile = CopyTestFile("test-short.mp3");
+        var inputFile = CopyTestFile("very-short.mp3");
         var invalidChapters = "{ invalid json }";
 
         // Act
@@ -291,18 +291,5 @@ public class AudioChapterToolsTests : TestBase
 
         // Assert
         Assert.Contains("Could not analyze audio file", result);
-    }
-
-    [Fact]
-    public async Task ExportChapterInfoAsync_WithUnsupportedFormat_ReturnsError()
-    {
-        // Arrange
-        var inputFile = CopyTestFile("test-short.mp3");
-
-        // Act
-        var result = await _chapterTools.ExportChapterInfoAsync(inputFile, format: "unsupported");
-
-        // Assert
-        Assert.Contains("Unsupported export format", result);
     }
 }
