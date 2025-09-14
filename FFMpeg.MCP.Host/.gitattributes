@@ -1,0 +1,2 @@
+FFMpeg.MCP.Host/Assets/ffmpeg/*.dll filter=lfs diff=lfs merge=lfs -text
+Assets/ffmpeg/*.dll filter=lfs diff=lfs merge=lfs -text
