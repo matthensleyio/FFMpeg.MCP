@@ -38,6 +38,7 @@ public class AudioChapterToolsTests : TestBase
         Assert.NotNull(response.Result);
         AssertFileExists(outputFile);
         Assert.Equal(2, response.Result.ChaptersAdded);
+        Assert.NotNull(response.Result.Chapters);
         Assert.Equal("Introduction", response.Result.Chapters[0].Title);
     }
 

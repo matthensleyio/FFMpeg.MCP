@@ -176,6 +176,7 @@ public class AudioBackupToolsTests : TestBase
         Assert.Equal(WorkingDirectory, result.Directory);
         Assert.False(result.IncludeSubdirectories);
         Assert.True(result.BackupCount > 0);
+        Assert.NotNull(result.Backups);
         Assert.NotEmpty(result.Backups);
     }
 
