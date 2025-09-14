@@ -27,14 +27,14 @@ public class AudioMetadataTools
         {
             var fileInfo = await _ffmpegService.GetFileInfoAsync(filePath);
             if (fileInfo == null)
-                return $"Could not analyze audio file: {filePath}";
+                return JsonSerializer.Serialize(new { success = false, message = $"Could not analyze audio file: {filePath}" });
 
             return JsonSerializer.Serialize(fileInfo, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting audio file info for {FilePath}", filePath);
-            return $"Error retrieving file information: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error retrieving file information: {ex.Message}" });
         }
     }
 
@@ -48,27 +48,22 @@ public class AudioMetadataTools
         {
             var metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(metadataJson);
             if (metadata == null)
-                return "Invalid metadata JSON provided";
+                return JsonSerializer.Serialize(new { success = false, message = "Invalid metadata JSON provided" });
 
             var result = await _ffmpegService.UpdateMetadataAsync(filePath, metadata, outputPath);
 
-            if (result.Success)
+            var response = new
             {
-                var response = new
-                {
-                    success = true,
-                    message = result.Message,
-                    outputFiles = result.OutputFiles
-                };
-                return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-            }
-
-            return $"Failed to update metadata: {result.Message}";
+                success = result.Success,
+                message = result.Message,
+                outputFiles = result.OutputFiles
+            };
+            return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating metadata for {FilePath}", filePath);
-            return $"Error updating metadata: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error updating metadata: {ex.Message}" });
         }
     }
 
@@ -97,28 +92,23 @@ public class AudioMetadataTools
             if (!string.IsNullOrEmpty(comment)) metadata["comment"] = comment;
 
             if (!metadata.Any())
-                return "No metadata fields provided to update";
+                return JsonSerializer.Serialize(new { success = false, message = "No metadata fields provided to update" });
 
             var result = await _ffmpegService.UpdateMetadataAsync(filePath, metadata, outputPath);
 
-            if (result.Success)
+            var response = new
             {
-                var response = new
-                {
-                    success = true,
-                    message = result.Message,
-                    updatedFields = metadata.Keys.ToArray(),
-                    outputFiles = result.OutputFiles
-                };
-                return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-            }
-
-            return $"Failed to update metadata: {result.Message}";
+                success = result.Success,
+                message = result.Message,
+                updatedFields = result.Success ? metadata.Keys.ToArray() : null,
+                outputFiles = result.OutputFiles
+            };
+            return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating common metadata for {FilePath}", filePath);
-            return $"Error updating metadata: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error updating metadata: {ex.Message}" });
         }
     }
 
@@ -158,7 +148,7 @@ public class AudioMetadataTools
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error checking FFmpeg availability");
-            return $"Error checking FFmpeg availability: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error checking FFmpeg availability: {ex.Message}" });
         }
     }
 }

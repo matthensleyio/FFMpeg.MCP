@@ -67,7 +67,7 @@ public class AudioMetadataToolsTests : TestBase
         // Assert
         Assert.NotNull(result);
         var response = JsonSerializer.Deserialize<JsonElement>(result);
-        Assert.True(response.GetProperty("success").GetBoolean());
+        Assert.True(response.GetProperty("success").GetBoolean(), response.GetProperty("message").GetString());
         AssertFileExists(outputFile);
     }
 
@@ -103,7 +103,7 @@ public class AudioMetadataToolsTests : TestBase
         // Assert
         Assert.NotNull(result);
         var response = JsonSerializer.Deserialize<JsonElement>(result);
-        Assert.True(response.GetProperty("success").GetBoolean());
+        Assert.True(response.GetProperty("success").GetBoolean(), response.GetProperty("message").GetString());
         AssertFileExists(outputFile);
     }
 
@@ -118,7 +118,7 @@ public class AudioMetadataToolsTests : TestBase
         var result = await _metadataTools.UpdateAudioMetadataAsync(testFile, invalidJson);
 
         // Assert
-        Assert.Contains("Invalid metadata JSON provided", result);
+        Assert.Contains("Error updating metadata", result);
     }
 
     [Fact]

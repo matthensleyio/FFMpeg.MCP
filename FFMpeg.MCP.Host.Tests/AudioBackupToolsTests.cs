@@ -298,11 +298,13 @@ public class AudioBackupToolsTests : TestBase
         // Arrange
         var invalidJson = "{ invalid json }";
 
-        // Act / Assert
-        await Assert.ThrowsAnyAsync<Exception>(async () =>
-        {
-            var result = await _backupTools.CreateBatchBackupAsync(invalidJson);
-        });
+        // Act
+        var result = await _backupTools.CreateBatchBackupAsync(invalidJson);
+
+        // Assert
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.False(response.GetProperty("success").GetBoolean());
+        Assert.Contains("Error in batch backup operation", response.GetProperty("message").GetString());
     }
 
     [Fact]
@@ -312,11 +314,13 @@ public class AudioBackupToolsTests : TestBase
         var invalidJson = "{ invalid json }";
         var archivePath = GetWorkingPath("test.zip");
 
-        // Act / Assert
-        await Assert.ThrowsAnyAsync<Exception>(async () =>
-        {
-            var result = await _backupTools.CreateArchiveBackupAsync(invalidJson, archivePath);
-        });
+        // Act
+        var result = await _backupTools.CreateArchiveBackupAsync(invalidJson, archivePath);
+
+        // Assert
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.False(response.GetProperty("success").GetBoolean());
+        Assert.Contains("Error creating archive backup", response.GetProperty("message").GetString());
     }
 
     [Fact]

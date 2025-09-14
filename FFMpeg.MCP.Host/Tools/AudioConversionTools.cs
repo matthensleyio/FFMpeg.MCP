@@ -63,12 +63,12 @@ public class AudioConversionTools
                 return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
             }
 
-            return $"Failed to convert audio: {result.Message} - {result.ErrorDetails}";
+            return JsonSerializer.Serialize(new { success = false, message = result.Message, errorDetails = result.ErrorDetails }, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error converting audio from {InputPath} to {OutputPath}", inputPath, outputPath);
-            return $"Error converting audio: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error converting audio: {ex.Message}" });
         }
     }
 
@@ -93,7 +93,7 @@ public class AudioConversionTools
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error converting to MP3 for {InputPath}", inputPath);
-            return $"Error converting to MP3: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error converting to MP3: {ex.Message}" });
         }
     }
 
@@ -139,12 +139,12 @@ public class AudioConversionTools
                 return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
             }
 
-            return $"Failed to convert to FLAC: {result.Message} - {result.ErrorDetails}";
+            return JsonSerializer.Serialize(new { success = false, message = result.Message, errorDetails = result.ErrorDetails }, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error converting to FLAC for {InputPath}", inputPath);
-            return $"Error converting to FLAC: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error converting to FLAC: {ex.Message}" });
         }
     }
 
@@ -195,12 +195,12 @@ public class AudioConversionTools
                 return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
             }
 
-            return $"Failed to convert to WAV: {result.Message} - {result.ErrorDetails}";
+            return JsonSerializer.Serialize(new { success = false, message = result.Message, errorDetails = result.ErrorDetails }, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error converting to WAV for {InputPath}", inputPath);
-            return $"Error converting to WAV: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error converting to WAV: {ex.Message}" });
         }
     }
 
@@ -245,12 +245,12 @@ public class AudioConversionTools
                 return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
             }
 
-            return $"Failed to convert to AAC: {result.Message} - {result.ErrorDetails}";
+            return JsonSerializer.Serialize(new { success = false, message = result.Message, errorDetails = result.ErrorDetails }, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error converting to AAC for {InputPath}", inputPath);
-            return $"Error converting to AAC: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error converting to AAC: {ex.Message}" });
         }
     }
 
@@ -264,7 +264,7 @@ public class AudioConversionTools
         {
             var optionsData = JsonSerializer.Deserialize<Dictionary<string, object>>(optionsJson);
             if (optionsData == null)
-                return "Invalid options JSON provided";
+                return JsonSerializer.Serialize(new { success = false, message = "Invalid options JSON provided" });
 
             var options = new ConversionOptions();
 
@@ -328,12 +328,12 @@ public class AudioConversionTools
                 return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
             }
 
-            return $"Failed to convert audio: {result.Message} - {result.ErrorDetails}";
+            return JsonSerializer.Serialize(new { success = false, message = result.Message, errorDetails = result.ErrorDetails }, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error converting audio with advanced options from {InputPath} to {OutputPath}", inputPath, outputPath);
-            return $"Error converting audio: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error converting audio: {ex.Message}" });
         }
     }
 
@@ -349,7 +349,7 @@ public class AudioConversionTools
         {
             var inputPaths = JsonSerializer.Deserialize<string[]>(inputPathsJson);
             if (inputPaths == null || !inputPaths.Any())
-                return "Invalid or empty input paths JSON provided";
+                return JsonSerializer.Serialize(new { success = false, message = "Invalid or empty input paths JSON provided" });
 
             if (!Directory.Exists(outputDirectory))
             {
@@ -418,7 +418,7 @@ public class AudioConversionTools
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in batch conversion to {OutputDirectory}", outputDirectory);
-            return $"Error in batch conversion: {ex.Message}";
+            return JsonSerializer.Serialize(new { success = false, message = $"Error in batch conversion: {ex.Message}" });
         }
     }
 }

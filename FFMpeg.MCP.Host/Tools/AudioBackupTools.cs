@@ -51,12 +51,12 @@ public class AudioBackupTools
                 return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
             }
 
-            return $"Failed to create backup: {result.Message} - {result.ErrorDetails}";
+            return JsonSerializer.Serialize(new { success = false, message = result.Message, errorDetails = result.ErrorDetails }, new JsonSerializerOptions { WriteIndented = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating backup for {FilePath}", filePath);
-            throw;
+            return JsonSerializer.Serialize(new { success = false, message = $"Error creating backup: {ex.Message}" });
         }
     }
 
@@ -138,7 +138,7 @@ public class AudioBackupTools
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in batch backup operation");
-            throw;
+            return JsonSerializer.Serialize(new { success = false, message = $"Error in batch backup operation: {ex.Message}" });
         }
     }
 
@@ -243,7 +243,7 @@ public class AudioBackupTools
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating archive backup to {ArchivePath}", archivePath);
-            throw;
+            return JsonSerializer.Serialize(new { success = false, message = $"Error creating archive backup: {ex.Message}" });
         }
     }
 
@@ -320,7 +320,7 @@ public class AudioBackupTools
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error restoring from backup {BackupPath}", backupPath);
-            throw;
+            return JsonSerializer.Serialize(new { success = false, message = $"Error restoring from backup: {ex.Message}" });
         }
     }
 
@@ -397,7 +397,7 @@ public class AudioBackupTools
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error listing backups in {Directory}", directory);
-            throw;
+            return Task.FromResult(JsonSerializer.Serialize(new { success = false, message = $"Error listing backups: {ex.Message}" }));
         }
     }
 
@@ -493,7 +493,7 @@ public class AudioBackupTools
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error cleaning up backups in {Directory}", directory);
-            throw;
+            return Task.FromResult(JsonSerializer.Serialize(new { success = false, message = $"Error cleaning up backups: {ex.Message}" }));
         }
     }
 

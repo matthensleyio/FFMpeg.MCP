@@ -71,7 +71,7 @@ public class FFmpegService : IFFmpegService
                 return null;
             }
 
-            var arguments = $"-v quiet -print_format json -show_format -show_streams \"{filePath}\"";
+            var arguments = $"-v quiet -print_format json -show_format -show_streams -show_chapters \"{filePath}\"";
             var result = await ExecuteFFmpegProcess("ffprobe", arguments);
 
             if (!result.Success)
@@ -95,7 +95,14 @@ public class FFmpegService : IFFmpegService
                 Duration = TimeSpan.FromSeconds(double.Parse(ffprobeResult.Format.Duration ?? "0")),
                 Format = ffprobeResult.Format.FormatName ?? string.Empty,
                 FileSizeBytes = new FileInfo(filePath).Length,
-                Metadata = ffprobeResult.Format.Tags ?? new Dictionary<string, string>()
+                Metadata = ffprobeResult.Format.Tags ?? new Dictionary<string, string>(),
+                Chapters = ffprobeResult.Chapters?.Select(c => new ChapterInfo
+                {
+                    Index = c.Id,
+                    StartTime = TimeSpan.FromSeconds(double.Parse(c.StartTime ?? "0")),
+                    EndTime = TimeSpan.FromSeconds(double.Parse(c.EndTime ?? "0")),
+                    Title = c.Tags?.Title ?? string.Empty
+                }).ToList() ?? new List<ChapterInfo>()
             };
 
             _logger.LogInformation("Successfully retrieved file info for: {FilePath}", filePath);
