@@ -4,233 +4,168 @@ using FFMpeg.MCP.Host.Models;
 using FFMpeg.MCP.Host.Services;
 using System.ComponentModel;
 using System.Text.Json;
+using FFMpeg.MCP.Host.Mcp;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace FFMpeg.MCP.Host.Tools;
+
+#region Response Models
+public class SplitResponse
+{
+    public string? Message { get; set; }
+    public List<string>? OutputFiles { get; set; }
+    public int FilesCreated { get; set; }
+}
+
+public class GetChaptersResponse
+{
+    public string? FilePath { get; set; }
+    public bool HasChapters { get; set; }
+    public int ChapterCount { get; set; }
+    public List<ChapterInfo>? Chapters { get; set; }
+}
+
+public class SplitWithProgressResponse
+{
+    public string OperationId { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public int TotalChapters { get; set; }
+    public bool IsNewOperation { get; set; }
+}
+#endregion
 
 [McpServerToolType]
 public class AudioSplittingTools
 {
     private readonly IFFmpegService _ffmpegService;
     private readonly ILogger<AudioSplittingTools> _logger;
+    private readonly McpDispatcher _dispatcher;
+    private readonly IProgressReporter _progressReporter;
 
-    public AudioSplittingTools(IFFmpegService ffmpegService, ILogger<AudioSplittingTools> logger)
+    public AudioSplittingTools(IFFmpegService ffmpegService, ILogger<AudioSplittingTools> logger, McpDispatcher dispatcher, IProgressReporter progressReporter)
     {
         _ffmpegService = ffmpegService;
         _logger = logger;
+        _dispatcher = dispatcher;
+        _progressReporter = progressReporter;
     }
 
-    [McpServerTool, Description("Split an audio file by existing chapters")]
-    public async Task<string> SplitAudioByChaptersAsync(
+    [McpServerTool, Description("Split an audio file by existing chapters with progress tracking")]
+    public Task<McpResponse<SplitWithProgressResponse>> SplitAudioByChaptersAsync(
         [Description("Full path to the audio file")] string filePath,
         [Description("Output filename pattern (optional). Use {filename}, {chapter}, {title} placeholders")] string? outputPattern = null,
         [Description("Whether to preserve metadata in split files")] bool preserveMetadata = true)
     {
-        try
+        return _dispatcher.DispatchAsync(async () =>
         {
-            var options = new SplitOptions
+            if (string.IsNullOrWhiteSpace(filePath)) throw new ArgumentException("File path is required.", nameof(filePath));
+            if (!File.Exists(filePath)) throw new FileNotFoundException("Audio file not found.", filePath);
+
+            var fileInfo = await _ffmpegService.GetFileInfoAsync(filePath);
+            if (fileInfo == null) throw new InvalidOperationException($"Could not analyze audio file: {filePath}");
+
+            if (!fileInfo.Chapters.Any()) throw new InvalidOperationException("No chapters found in the audio file.");
+
+            var options = new SplitOptions { SplitByChapters = true, OutputPattern = outputPattern, PreserveMetadata = preserveMetadata };
+
+            var startResult = await _ffmpegService.SplitFileAsyncWithProgress(filePath, options, _progressReporter);
+
+            var message = startResult.IsNewOperation
+                ? $"Started splitting {fileInfo.Chapters.Count} chapters. Use the operation ID to monitor progress."
+                : $"Found existing operation splitting {fileInfo.Chapters.Count} chapters. Use the operation ID to monitor progress.";
+
+            return new SplitWithProgressResponse
             {
-                SplitByChapters = true,
-                OutputPattern = outputPattern,
-                PreserveMetadata = preserveMetadata
+                OperationId = startResult.OperationId,
+                Message = message,
+                TotalChapters = fileInfo.Chapters.Count,
+                IsNewOperation = startResult.IsNewOperation
             };
-
-            var result = await _ffmpegService.SplitFileAsync(filePath, options);
-
-            if (result.Success)
-            {
-                var response = new
-                {
-                    success = true,
-                    message = result.Message,
-                    outputFiles = result.OutputFiles,
-                    filesCreated = result.OutputFiles.Count
-                };
-                return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-            }
-
-            return JsonSerializer.Serialize(new { success = false, message = result.Message, errorDetails = result.ErrorDetails }, new JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error splitting audio by chapters for {FilePath}", filePath);
-            return JsonSerializer.Serialize(new { success = false, message = $"Error splitting audio: {ex.Message}" });
-        }
+        });
     }
 
-    [McpServerTool, Description("Split an audio file into segments of specified duration")]
-    public async Task<string> SplitAudioByDurationAsync(
+    [McpServerTool, Description("Split an audio file into segments of specified duration with progress tracking")]
+    public Task<McpResponse<SplitWithProgressResponse>> SplitAudioByDurationAsync(
         [Description("Full path to the audio file")] string filePath,
         [Description("Maximum duration for each segment in seconds")] int maxDurationSeconds,
         [Description("Output filename pattern (optional). Use {filename}, {segment} placeholders")] string? outputPattern = null,
         [Description("Whether to preserve metadata in split files")] bool preserveMetadata = true)
     {
-        try
+        return _dispatcher.DispatchAsync(async () =>
         {
-            var options = new SplitOptions
+            if (string.IsNullOrWhiteSpace(filePath)) throw new ArgumentException("File path is required.", nameof(filePath));
+            if (!File.Exists(filePath)) throw new FileNotFoundException("Audio file not found.", filePath);
+
+            var fileInfo = await _ffmpegService.GetFileInfoAsync(filePath);
+            if (fileInfo == null) throw new InvalidOperationException($"Could not analyze audio file: {filePath}");
+
+            var maxDuration = TimeSpan.FromSeconds(maxDurationSeconds);
+            var totalSegments = (int)Math.Ceiling(fileInfo.Duration.TotalSeconds / maxDuration.TotalSeconds);
+
+            var options = new SplitOptions { MaxDuration = maxDuration, OutputPattern = outputPattern, PreserveMetadata = preserveMetadata };
+
+            var startResult = await _ffmpegService.SplitFileAsyncWithProgress(filePath, options, _progressReporter);
+
+            var message = startResult.IsNewOperation
+                ? $"Started splitting into {totalSegments} segments. Use the operation ID to monitor progress."
+                : $"Found existing operation splitting into {totalSegments} segments. Use the operation ID to monitor progress.";
+
+            return new SplitWithProgressResponse
             {
-                MaxDuration = TimeSpan.FromSeconds(maxDurationSeconds),
-                OutputPattern = outputPattern,
-                PreserveMetadata = preserveMetadata
+                OperationId = startResult.OperationId,
+                Message = message,
+                TotalChapters = totalSegments,
+                IsNewOperation = startResult.IsNewOperation
             };
-
-            var result = await _ffmpegService.SplitFileAsync(filePath, options);
-
-            if (result.Success)
-            {
-                var response = new
-                {
-                    success = true,
-                    message = result.Message,
-                    outputFiles = result.OutputFiles,
-                    filesCreated = result.OutputFiles.Count,
-                    maxDurationSeconds = maxDurationSeconds
-                };
-                return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-            }
-
-            return JsonSerializer.Serialize(new { success = false, message = result.Message, errorDetails = result.ErrorDetails }, new JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error splitting audio by duration for {FilePath}", filePath);
-            return JsonSerializer.Serialize(new { success = false, message = $"Error splitting audio: {ex.Message}" });
-        }
+        });
     }
 
-    [McpServerTool, Description("Split an audio file into segments of specified duration (using minutes for convenience)")]
-    public async Task<string> SplitAudioByMinutesAsync(
+    [McpServerTool, Description("Split an audio file into segments of specified duration (using minutes for convenience) with progress tracking")]
+    public Task<McpResponse<SplitWithProgressResponse>> SplitAudioByMinutesAsync(
         [Description("Full path to the audio file")] string filePath,
         [Description("Maximum duration for each segment in minutes")] double maxDurationMinutes,
         [Description("Output filename pattern (optional). Use {filename}, {segment} placeholders")] string? outputPattern = null,
         [Description("Whether to preserve metadata in split files")] bool preserveMetadata = true)
     {
-        try
-        {
-            var maxDurationSeconds = (int)(maxDurationMinutes * 60);
-            return await SplitAudioByDurationAsync(filePath, maxDurationSeconds, outputPattern, preserveMetadata);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error splitting audio by minutes for {FilePath}", filePath);
-            return JsonSerializer.Serialize(new { success = false, message = $"Error splitting audio: {ex.Message}" });
-        }
+        var maxDurationSeconds = (int)(maxDurationMinutes * 60);
+        return SplitAudioByDurationAsync(filePath, maxDurationSeconds, outputPattern, preserveMetadata);
     }
 
     [McpServerTool, Description("Get chapter information from an audio file")]
-    public async Task<string> GetAudioChaptersAsync(
+    public Task<McpResponse<GetChaptersResponse>> GetAudioChaptersAsync(
         [Description("Full path to the audio file")] string filePath)
     {
-        try
+        return _dispatcher.DispatchAsync(async () =>
         {
+            if (string.IsNullOrWhiteSpace(filePath)) throw new ArgumentException("File path is required.", nameof(filePath));
+            if (!File.Exists(filePath)) throw new FileNotFoundException("Audio file not found.", filePath);
+
             var fileInfo = await _ffmpegService.GetFileInfoAsync(filePath);
-            if (fileInfo == null)
-                return JsonSerializer.Serialize(new { success = false, message = $"Could not analyze audio file: {filePath}" });
+            if (fileInfo == null) throw new InvalidOperationException($"Could not analyze audio file: {filePath}");
 
-            var response = new
+            return new GetChaptersResponse
             {
-                filePath = filePath,
-                hasChapters = fileInfo.Chapters.Any(),
-                chapterCount = fileInfo.Chapters.Count,
-                chapters = fileInfo.Chapters.Select(c => new
-                {
-                    index = c.Index,
-                    title = c.Title,
-                    startTime = c.StartTime.ToString(@"hh\:mm\:ss"),
-                    endTime = c.EndTime.ToString(@"hh\:mm\:ss"),
-                    duration = (c.EndTime - c.StartTime).ToString(@"hh\:mm\:ss"),
-                    metadata = c.Metadata
-                }).ToList()
+                FilePath = filePath,
+                HasChapters = fileInfo.Chapters.Any(),
+                ChapterCount = fileInfo.Chapters.Count,
+                Chapters = fileInfo.Chapters
             };
-
-            return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting chapters for {FilePath}", filePath);
-            return JsonSerializer.Serialize(new { success = false, message = $"Error retrieving chapters: {ex.Message}" });
-        }
+        });
     }
 
-    [McpServerTool, Description("Split audio file with advanced options")]
-    public async Task<string> SplitAudioAdvancedAsync(
-        [Description("Full path to the audio file")] string filePath,
-        [Description("JSON object with split options")] string optionsJson)
+    [McpServerTool, Description("Get the current progress of a long-running operation")]
+    public Task<McpResponse<OperationProgress?>> GetOperationProgressAsync(
+        [Description("Operation ID returned from a progress-aware operation")] string operationId)
     {
-        try
+        return _dispatcher.DispatchAsync(async () =>
         {
-            var optionsData = JsonSerializer.Deserialize<Dictionary<string, object>>(optionsJson);
-            if (optionsData == null)
-                return JsonSerializer.Serialize(new { success = false, message = "Invalid options JSON provided" });
+            if (string.IsNullOrWhiteSpace(operationId)) throw new ArgumentException("Operation ID is required.", nameof(operationId));
 
-            var options = new SplitOptions
-            {
-                PreserveMetadata = true
-            };
-
-            if (optionsData.ContainsKey("maxDurationSeconds"))
-            {
-                if (double.TryParse(optionsData["maxDurationSeconds"].ToString(), out var seconds))
-                {
-                    options.MaxDuration = TimeSpan.FromSeconds(seconds);
-                }
-            }
-
-            if (optionsData.ContainsKey("maxDurationMinutes"))
-            {
-                if (double.TryParse(optionsData["maxDurationMinutes"].ToString(), out var minutes))
-                {
-                    options.MaxDuration = TimeSpan.FromMinutes(minutes);
-                }
-            }
-
-            if (optionsData.ContainsKey("splitByChapters"))
-            {
-                if (bool.TryParse(optionsData["splitByChapters"].ToString(), out var splitByChapters))
-                {
-                    options.SplitByChapters = splitByChapters;
-                }
-            }
-
-            if (optionsData.ContainsKey("outputPattern"))
-            {
-                options.OutputPattern = optionsData["outputPattern"].ToString();
-            }
-
-            if (optionsData.ContainsKey("preserveMetadata"))
-            {
-                if (bool.TryParse(optionsData["preserveMetadata"].ToString(), out var preserveMetadata))
-                {
-                    options.PreserveMetadata = preserveMetadata;
-                }
-            }
-
-            var result = await _ffmpegService.SplitFileAsync(filePath, options);
-
-            if (result.Success)
-            {
-                var response = new
-                {
-                    success = true,
-                    message = result.Message,
-                    outputFiles = result.OutputFiles,
-                    filesCreated = result.OutputFiles.Count,
-                    options = new
-                    {
-                        maxDuration = options.MaxDuration?.ToString(@"hh\:mm\:ss"),
-                        splitByChapters = options.SplitByChapters,
-                        outputPattern = options.OutputPattern,
-                        preserveMetadata = options.PreserveMetadata
-                    }
-                };
-                return JsonSerializer.Serialize(response, new JsonSerializerOptions { WriteIndented = true });
-            }
-
-            return JsonSerializer.Serialize(new { success = false, message = result.Message, errorDetails = result.ErrorDetails }, new JsonSerializerOptions { WriteIndented = true });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error splitting audio with advanced options for {FilePath}", filePath);
-            return JsonSerializer.Serialize(new { success = false, message = $"Error splitting audio: {ex.Message}" });
-        }
+            return await _progressReporter.GetProgressAsync(operationId);
+        });
     }
 }
