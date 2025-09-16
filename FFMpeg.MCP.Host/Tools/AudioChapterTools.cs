@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
-using FFMpeg.MCP.Host.Models;
+using FFMpeg.MCP.Host.Models.Output;
+using FFMpeg.MCP.Host.Models.Input;
 using FFMpeg.MCP.Host.Services;
 using System.ComponentModel;
 using System.Text.Json;
@@ -13,48 +14,7 @@ using System.Threading.Tasks;
 
 namespace FFMpeg.MCP.Host.Tools;
 
-#region Response Models
-public class SetChaptersResponse
-{
-    public string? Message { get; set; }
-    public string[]? OutputFiles { get; set; }
-    public int ChaptersAdded { get; set; }
-    public List<ChapterInfoResponse>? Chapters { get; set; }
-}
-
-public class ChapterInfoResponse
-{
-    public int Index { get; set; }
-    public string? Title { get; set; }
-    public string? StartTime { get; set; }
-    public string? EndTime { get; set; }
-    public string? Duration { get; set; }
-}
-
-public class GenerateEqualChaptersResponse
-{
-    public string? Message { get; set; }
-    public string[]? OutputFiles { get; set; }
-    public int ChaptersGenerated { get; set; }
-    public double ChapterDurationMinutes { get; set; }
-    public double TotalDurationMinutes { get; set; }
-    public List<object>? Chapters { get; set; }
-}
-
-public class ExportChapterInfoResponse
-{
-    public string? Message { get; set; }
-    public string? OutputFile { get; set; }
-    public int ChaptersExported { get; set; }
-    public string? Format { get; set; }
-}
-
-public class RemoveChaptersResponse
-{
-    public string? Message { get; set; }
-    public string[]? OutputFiles { get; set; }
-}
-#endregion
+// Response models have been moved to FFMpeg.MCP.Host.Models.Output
 
 [McpServerToolType]
 public class AudioChapterTools

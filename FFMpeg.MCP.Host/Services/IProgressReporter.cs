@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using FFMpeg.MCP.Host.Models;
+using FFMpeg.MCP.Host.Models.Output;
 
 namespace FFMpeg.MCP.Host.Services;
 

@@ -1,16 +1,6 @@
-using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace FFMpeg.MCP.Host.Models;
-
-public class FFProbeResult
-{
-    [JsonPropertyName("format")]
-    public FFProbeFormat? Format { get; set; }
-
-    [JsonPropertyName("chapters")]
-    public List<FFProbeChapter> Chapters { get; set; } = new();
-}
+namespace FFMpeg.MCP.Host.Models.Output;
 
 public class FFProbeChapter
 {
@@ -34,10 +24,4 @@ public class FFProbeChapter
 
     [JsonPropertyName("tags")]
     public FFProbeChapterTags? Tags { get; set; }
-}
-
-public class FFProbeChapterTags
-{
-    [JsonPropertyName("title")]
-    public string? Title { get; set; }
 }

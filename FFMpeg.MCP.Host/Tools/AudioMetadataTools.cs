@@ -10,29 +10,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using FFMpeg.MCP.Host.Models.Output;
 
 namespace FFMpeg.MCP.Host.Tools;
 
-#region Response Models
-public class UpdateMetadataResponse
-{
-    public string? Message { get; set; }
-    public string[]? OutputFiles { get; set; }
-    public string[]? UpdatedFields { get; set; }
-}
-
-public class SupportedFormatsResponse
-{
-    public List<string>? SupportedFormats { get; set; }
-    public int Count { get; set; }
-}
-
-public class FFmpegAvailabilityResponse
-{
-    public bool FfmpegAvailable { get; set; }
-    public string? Message { get; set; }
-}
-#endregion
+// Response models have been moved to FFMpeg.MCP.Host.Models.Output
 
 [McpServerToolType]
 public class AudioMetadataTools
@@ -54,11 +36,11 @@ public class AudioMetadataTools
     {
         return _dispatcher.DispatchAsync(async () =>
         {
-            if (string.IsNullOrWhiteSpace(filePath)) throw new ArgumentException("File path is required.", nameof(filePath));
-            if (!File.Exists(filePath)) throw new FileNotFoundException("Audio file not found.", filePath);
+            if (string.IsNullOrWhiteSpace(filePath)) { throw new ArgumentException("File path is required.", nameof(filePath)); }
+            if (!File.Exists(filePath)) { throw new FileNotFoundException("Audio file not found.", filePath); }
 
             var fileInfo = await _ffmpegService.GetFileInfoAsync(filePath);
-            if (fileInfo == null) throw new InvalidOperationException($"Could not analyze audio file: {filePath}");
+            if (fileInfo == null) { throw new InvalidOperationException($"Could not analyze audio file: {filePath}"); }
 
             return fileInfo;
         });
@@ -72,14 +54,14 @@ public class AudioMetadataTools
     {
         return _dispatcher.DispatchAsync(async () =>
         {
-            if (string.IsNullOrWhiteSpace(filePath)) throw new ArgumentException("File path is required.", nameof(filePath));
-            if (!File.Exists(filePath)) throw new FileNotFoundException("Audio file not found.", filePath);
+            if (string.IsNullOrWhiteSpace(filePath)) { throw new ArgumentException("File path is required.", nameof(filePath)); }
+            if (!File.Exists(filePath)) { throw new FileNotFoundException("Audio file not found.", filePath); }
 
             var metadata = JsonSerializer.Deserialize<Dictionary<string, string>>(metadataJson);
-            if (metadata == null) throw new ArgumentException("Invalid metadata JSON provided", nameof(metadataJson));
+            if (metadata == null) { throw new ArgumentException("Invalid metadata JSON provided", nameof(metadataJson)); }
 
             var result = await _ffmpegService.UpdateMetadataAsync(filePath, metadata, outputPath);
-            if (!result.Success) throw new InvalidOperationException($"Failed to update metadata: {result.Message}");
+            if (!result.Success) { throw new InvalidOperationException($"Failed to update metadata: {result.Message}"); }
 
             return new UpdateMetadataResponse
             {
@@ -103,22 +85,22 @@ public class AudioMetadataTools
     {
         return _dispatcher.DispatchAsync(async () =>
         {
-            if (string.IsNullOrWhiteSpace(filePath)) throw new ArgumentException("File path is required.", nameof(filePath));
-            if (!File.Exists(filePath)) throw new FileNotFoundException("Audio file not found.", filePath);
+            if (string.IsNullOrWhiteSpace(filePath)) { throw new ArgumentException("File path is required.", nameof(filePath)); }
+            if (!File.Exists(filePath)) { throw new FileNotFoundException("Audio file not found.", filePath); }
 
             var metadata = new Dictionary<string, string>();
-            if (!string.IsNullOrEmpty(title)) metadata["title"] = title;
-            if (!string.IsNullOrEmpty(artist)) metadata["artist"] = artist;
-            if (!string.IsNullOrEmpty(album)) metadata["album"] = album;
-            if (!string.IsNullOrEmpty(genre)) metadata["genre"] = genre;
-            if (!string.IsNullOrEmpty(year)) metadata["date"] = year;
-            if (!string.IsNullOrEmpty(track)) metadata["track"] = track;
-            if (!string.IsNullOrEmpty(comment)) metadata["comment"] = comment;
+            if (!string.IsNullOrEmpty(title)) { metadata["title"] = title; }
+            if (!string.IsNullOrEmpty(artist)) { metadata["artist"] = artist; }
+            if (!string.IsNullOrEmpty(album)) { metadata["album"] = album; }
+            if (!string.IsNullOrEmpty(genre)) { metadata["genre"] = genre; }
+            if (!string.IsNullOrEmpty(year)) { metadata["date"] = year; }
+            if (!string.IsNullOrEmpty(track)) { metadata["track"] = track; }
+            if (!string.IsNullOrEmpty(comment)) { metadata["comment"] = comment; }
 
-            if (!metadata.Any()) throw new ArgumentException("No metadata fields provided to update");
+            if (!metadata.Any()) { throw new ArgumentException("No metadata fields provided to update"); }
 
             var result = await _ffmpegService.UpdateMetadataAsync(filePath, metadata, outputPath);
-            if (!result.Success) throw new InvalidOperationException($"Failed to update metadata: {result.Message}");
+            if (!result.Success) { throw new InvalidOperationException($"Failed to update metadata: {result.Message}"); }
 
             return new UpdateMetadataResponse
             {

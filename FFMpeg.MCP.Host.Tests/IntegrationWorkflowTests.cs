@@ -2,6 +2,7 @@ using FFMpeg.MCP.Host.Mcp;
 using FFMpeg.MCP.Host.Tools;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using FFMpeg.MCP.Host.Tests.Mocks;
 
 namespace FFMpeg.MCP.Host.Tests;
 
@@ -18,9 +19,10 @@ public class IntegrationWorkflowTests : TestBase
         var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
         var dispatcherLogger = loggerFactory.CreateLogger<McpDispatcher>();
         var dispatcher = new McpDispatcher(dispatcherLogger);
+        var progressReporter = new DummyProgressReporter();
 
         _metadataTools = new AudioMetadataTools(FFmpegService, loggerFactory.CreateLogger<AudioMetadataTools>(), dispatcher);
-        _splittingTools = new AudioSplittingTools(FFmpegService, loggerFactory.CreateLogger<AudioSplittingTools>(), dispatcher);
+        _splittingTools = new AudioSplittingTools(FFmpegService, loggerFactory.CreateLogger<AudioSplittingTools>(), dispatcher, progressReporter);
         _conversionTools = new AudioConversionTools(FFmpegService, loggerFactory.CreateLogger<AudioConversionTools>(), dispatcher);
         _chapterTools = new AudioChapterTools(FFmpegService, loggerFactory.CreateLogger<AudioChapterTools>(), dispatcher);
         _backupTools = new AudioBackupTools(FFmpegService, loggerFactory.CreateLogger<AudioBackupTools>(), dispatcher);

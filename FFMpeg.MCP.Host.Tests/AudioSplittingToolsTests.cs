@@ -2,6 +2,7 @@ using FFMpeg.MCP.Host.Mcp;
 using FFMpeg.MCP.Host.Tools;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using FFMpeg.MCP.Host.Tests.Mocks;
 
 namespace FFMpeg.MCP.Host.Tests;
 
@@ -14,7 +15,8 @@ public class AudioSplittingToolsTests : TestBase
         var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
         var dispatcherLogger = loggerFactory.CreateLogger<McpDispatcher>();
         var dispatcher = new McpDispatcher(dispatcherLogger);
-        _splittingTools = new AudioSplittingTools(FFmpegService, loggerFactory.CreateLogger<AudioSplittingTools>(), dispatcher);
+        var progressReporter = new DummyProgressReporter();
+        _splittingTools = new AudioSplittingTools(FFmpegService, loggerFactory.CreateLogger<AudioSplittingTools>(), dispatcher, progressReporter);
     }
 
     [Fact]

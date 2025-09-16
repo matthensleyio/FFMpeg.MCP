@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
-using FFMpeg.MCP.Host.Models;
+using FFMpeg.MCP.Host.Models.Output;
+using FFMpeg.MCP.Host.Models.Input;
 using FFMpeg.MCP.Host.Services;
 using System.ComponentModel;
 using System.Text.Json;
@@ -13,51 +14,6 @@ using System.Threading.Tasks;
 using System.Text;
 
 namespace FFMpeg.MCP.Host.Tools;
-
-#region Request Models
-public class ConcatenationRequest
-{
-    public List<string> InputFiles { get; set; } = new();
-    public List<string>? ChapterTitles { get; set; }
-    public string? Title { get; set; }
-    public string? Author { get; set; }
-    public string? Narrator { get; set; }
-    public string? Genre { get; set; }
-    public string? Description { get; set; }
-    public int? Year { get; set; }
-}
-#endregion
-
-#region Response Models
-public class ConcatenationResponse
-{
-    public string? Message { get; set; }
-    public List<string>? OutputFiles { get; set; }
-    public ConcatenationInfo? Concatenation { get; set; }
-}
-
-public class ConcatenationInfo
-{
-    public int InputFileCount { get; set; }
-    public string? OutputFormat { get; set; }
-    public long? TotalInputSize { get; set; }
-    public long? OutputSize { get; set; }
-    public string? TotalDuration { get; set; }
-    public int ChapterCount { get; set; }
-    public List<AudiobookChapter>? Chapters { get; set; }
-    public Dictionary<string, string>? Metadata { get; set; }
-}
-
-public class AudiobookChapter
-{
-    public int Index { get; set; }
-    public string Title { get; set; } = string.Empty;
-    public string StartTime { get; set; } = string.Empty;
-    public string EndTime { get; set; } = string.Empty;
-    public string Duration { get; set; } = string.Empty;
-    public string SourceFile { get; set; } = string.Empty;
-}
-#endregion
 
 [McpServerToolType]
 public class AudiobookTools
@@ -100,20 +56,17 @@ public class AudiobookTools
                 if (customTitles != null) chapterTitles.AddRange(customTitles);
             }
 
-            // Validate all input files exist
             foreach (var inputFile in inputFiles)
             {
                 if (!File.Exists(inputFile))
                     throw new FileNotFoundException($"Input file not found: {inputFile}");
             }
 
-            // Ensure output path has .m4b extension
             if (!outputPath.EndsWith(".m4b", StringComparison.OrdinalIgnoreCase))
             {
                 outputPath = Path.ChangeExtension(outputPath, ".m4b");
             }
 
-            // Create output directory if it doesn't exist
             var outputDir = Path.GetDirectoryName(outputPath);
             if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
             {
@@ -122,7 +75,6 @@ public class AudiobookTools
 
             _logger.LogInformation("Starting concatenation of {FileCount} files to M4B audiobook", inputFiles.Length);
 
-            // Get file information for each input file
             var fileInfos = new List<(string Path, AudioFileInfo? Info, TimeSpan CumulativeDuration)>();
             var cumulativeDuration = TimeSpan.Zero;
             var totalInputSize = 0L;
@@ -146,25 +98,19 @@ public class AudiobookTools
                 throw new InvalidOperationException("No valid input files found");
             }
 
-            // Generate chapters based on file durations
             var chapters = GenerateChapters(fileInfos, chapterTitles);
 
-            // Create temporary files for FFmpeg processing
             var tempConcatFile = Path.GetTempFileName();
             var tempChapterFile = Path.GetTempFileName();
 
             try
             {
-                // Create concat file for FFmpeg
                 await CreateConcatFile(tempConcatFile, inputFiles);
 
-                // Create chapter metadata file
                 await CreateChapterMetadataFile(tempChapterFile, chapters, title, author, narrator, genre, description, year);
 
-                // Build FFmpeg command for concatenation with chapters and metadata
                 var arguments = BuildConcatenationCommand(tempConcatFile, tempChapterFile, outputPath, title, author, narrator, genre, description, year);
 
-                // Execute FFmpeg concatenation
                 var result = await ExecuteFFmpegConcatenation(arguments);
 
                 if (!result.Success)
@@ -172,7 +118,6 @@ public class AudiobookTools
                     throw new InvalidOperationException($"Failed to concatenate files to M4B: {result.Error}");
                 }
 
-                // Get output file info
                 var outputFileInfo = new FileInfo(outputPath);
                 var outputSize = outputFileInfo.Exists ? outputFileInfo.Length : 0;
 
@@ -205,7 +150,6 @@ public class AudiobookTools
             }
             finally
             {
-                // Clean up temporary files
                 if (File.Exists(tempConcatFile)) File.Delete(tempConcatFile);
                 if (File.Exists(tempChapterFile)) File.Delete(tempChapterFile);
             }
@@ -250,7 +194,6 @@ public class AudiobookTools
         var concatContent = new StringBuilder();
         foreach (var inputFile in inputFiles)
         {
-            // Escape single quotes for FFmpeg
             var escapedPath = inputFile.Replace("'", "'\\''");
             concatContent.AppendLine($"file '{escapedPath}'");
         }
@@ -264,7 +207,6 @@ public class AudiobookTools
         var content = new StringBuilder();
         content.AppendLine(";FFMETADATA1");
 
-        // Add global metadata
         if (!string.IsNullOrEmpty(title)) content.AppendLine($"title={title}");
         if (!string.IsNullOrEmpty(author)) content.AppendLine($"artist={author}");
         if (!string.IsNullOrEmpty(narrator)) content.AppendLine($"albumartist={narrator}");
@@ -274,7 +216,6 @@ public class AudiobookTools
 
         content.AppendLine();
 
-        // Add chapter information
         foreach (var chapter in chapters)
         {
             content.AppendLine("[CHAPTER]");
@@ -303,7 +244,6 @@ public class AudiobookTools
         args.Append("-c:a aac -b:a 128k ");
         args.Append("-movflags +faststart ");
 
-        // Add specific metadata for M4B
         if (!string.IsNullOrEmpty(title)) args.Append($"-metadata title=\"{title}\" ");
         if (!string.IsNullOrEmpty(author)) args.Append($"-metadata artist=\"{author}\" ");
         if (!string.IsNullOrEmpty(narrator)) args.Append($"-metadata albumartist=\"{narrator}\" ");

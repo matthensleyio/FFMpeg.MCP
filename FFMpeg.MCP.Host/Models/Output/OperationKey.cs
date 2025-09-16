@@ -2,8 +2,9 @@ using System;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.IO;
 
-namespace FFMpeg.MCP.Host.Models;
+namespace FFMpeg.MCP.Host.Models.Output;
 
 public class OperationKey
 {

@@ -1,4 +1,4 @@
-namespace FFMpeg.MCP.Host.Models;
+namespace FFMpeg.MCP.Host.Models.Output;
 
 public enum OperationStatus
 {

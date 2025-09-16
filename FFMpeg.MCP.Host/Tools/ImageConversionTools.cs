@@ -1,35 +1,20 @@
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
-using FFMpeg.MCP.Host.Models;
+using FFMpeg.MCP.Host.Models.Output;
+using FFMpeg.MCP.Host.Models.Input;
 using FFMpeg.MCP.Host.Services;
 using System.ComponentModel;
+using System.Text.Json;
 using FFMpeg.MCP.Host.Mcp;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace FFMpeg.MCP.Host.Tools;
 
-#region Response Models
-public class ImageConversionResponse
-{
-    public string? Message { get; set; }
-    public List<string>? OutputFiles { get; set; }
-    public ImageConversionInfo? Conversion { get; set; }
-}
-
-public class ImageConversionInfo
-{
-    public string? InputFormat { get; set; }
-    public string? OutputFormat { get; set; }
-    public long? InputSize { get; set; }
-    public long? OutputSize { get; set; }
-    public string? InputDimensions { get; set; }
-    public string? OutputDimensions { get; set; }
-    public int? IconSize { get; set; }
-}
-#endregion
+// Response models have been moved to FFMpeg.MCP.Host.Models.Output
 
 [McpServerToolType]
 public class ImageConversionTools
@@ -53,9 +38,9 @@ public class ImageConversionTools
     {
         return _dispatcher.DispatchAsync(async () =>
         {
-            if (string.IsNullOrWhiteSpace(inputPath)) throw new ArgumentException("Input path is required.", nameof(inputPath));
-            if (string.IsNullOrWhiteSpace(outputPath)) throw new ArgumentException("Output path is required.", nameof(outputPath));
-            if (!File.Exists(inputPath)) throw new FileNotFoundException("Input image file not found.", inputPath);
+            if (string.IsNullOrWhiteSpace(inputPath)) { throw new ArgumentException("Input path is required.", nameof(inputPath)); }
+            if (string.IsNullOrWhiteSpace(outputPath)) { throw new ArgumentException("Output path is required.", nameof(outputPath)); }
+            if (!File.Exists(inputPath)) { throw new FileNotFoundException("Input image file not found.", inputPath); }
 
             // Validate icon size
             var validSizes = new[] { 16, 32, 48, 64, 128, 256 };
@@ -96,7 +81,7 @@ public class ImageConversionTools
 
             var result = await _ffmpegService.ConvertFileAsync(inputPath, outputPath, options);
 
-            if (!result.Success) throw new InvalidOperationException($"Failed to convert image to .ico: {result.Message}");
+            if (!result.Success) { throw new InvalidOperationException($"Failed to convert image to .ico: {result.Message}"); }
 
             // Get output file info
             var outputFileInfo = new FileInfo(outputPath);

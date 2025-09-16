@@ -1,7 +1,8 @@
 using Microsoft.Extensions.Logging;
-using FFMpeg.MCP.Host.Models;
 using System.Text.Json;
 using System.Diagnostics;
+using FFMpeg.MCP.Host.Models.Output;
+using FFMpeg.MCP.Host.Models.Input;
 
 namespace FFMpeg.MCP.Host.Services;
 
@@ -332,6 +333,18 @@ public class FFmpegService : IFFmpegService
                 return new OperationStartResult
                 {
                     OperationId = startResult.OperationId,
+                    IsNewOperation = true,
+                    Message = $"Split operation started for {totalSteps} parts. Use operation ID to monitor progress."
+                };
+            }
+            else if (progressReporter != null)
+            {
+                // Fallback for any non-null IProgressReporter (e.g., DummyProgressReporter in tests)
+                var operationId = Guid.NewGuid().ToString();
+                _ = Task.Run(async () => await ExecuteSplitOperationInBackground(filePath, options, fileInfo, operationId, totalSteps, progressReporter));
+                return new OperationStartResult
+                {
+                    OperationId = operationId,
                     IsNewOperation = true,
                     Message = $"Split operation started for {totalSteps} parts. Use operation ID to monitor progress."
                 };

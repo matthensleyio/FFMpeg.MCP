@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
+using FFMpeg.MCP.Host.Models.Output;
+using FFMpeg.MCP.Host.Models.Input;
 using FFMpeg.MCP.Host.Services;
 using System.ComponentModel;
 using System.Text.Json;
@@ -10,99 +12,10 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Threading.Tasks;
-using FFMpeg.MCP.Host.Models;
 
 namespace FFMpeg.MCP.Host.Tools;
 
-#region Response Models
-public class CreateAudioBackupResponse
-{
-    public string? Message { get; set; }
-    public string? OriginalFile { get; set; }
-    public string? BackupFile { get; set; }
-    public AudioFileInfoResponse? FileInfo { get; set; }
-    public string? BackupCreated { get; set; }
-}
-
-public class AudioFileInfoResponse
-{
-    public string? FileName { get; set; }
-    public long FileSizeBytes { get; set; }
-    public string? Duration { get; set; }
-    public string? Format { get; set; }
-}
-
-public class CreateBatchBackupResponse
-{
-    public string? Message { get; set; }
-    public int TotalFiles { get; set; }
-    public int SuccessCount { get; set; }
-    public int FailureCount { get; set; }
-    public string? BackupDirectory { get; set; }
-    public string? BackupCreated { get; set; }
-    public List<BatchBackupResult>? Results { get; set; }
-}
-
-public class BatchBackupResult
-{
-    public string? OriginalFile { get; set; }
-    public string? BackupFile { get; set; }
-    public bool Success { get; set; }
-    public string? Message { get; set; }
-}
-
-public class CreateArchiveBackupResponse
-{
-    public string? Message { get; set; }
-    public string? ArchivePath { get; set; }
-    public long ArchiveSize { get; set; }
-    public int FilesIncluded { get; set; }
-    public string? ArchiveCreated { get; set; }
-}
-
-public class RestoreFromBackupResponse
-{
-    public string? Message { get; set; }
-    public string? BackupFile { get; set; }
-    public string? RestoredFile { get; set; }
-    public AudioFileInfoResponse? FileInfo { get; set; }
-    public string? RestoredAt { get; set; }
-}
-
-public class ListBackupsResponse
-{
-    public string? Message { get; set; }
-    public string? Directory { get; set; }
-    public bool IncludeSubdirectories { get; set; }
-    public int BackupCount { get; set; }
-    public List<BackupInfo>? Backups { get; set; }
-}
-
-public class BackupInfo
-{
-    public string? BackupFile { get; set; }
-    public string? OriginalFileName { get; set; }
-    public string? BackupTimestamp { get; set; }
-    public long FileSize { get; set; }
-    public string? Created { get; set; }
-    public string? Modified { get; set; }
-}
-
-public class CleanupBackupsResponse
-{
-    public string? Message { get; set; }
-    public string? Directory { get; set; }
-    public bool DryRun { get; set; }
-    public int? MaxAgeDays { get; set; }
-    public int? MaxBackupsPerFile { get; set; }
-    public int TotalBackupFiles { get; set; }
-    public int FilesToDelete { get; set; }
-    public List<string>? DeletedFiles { get; set; }
-    public long SpaceSavedBytes { get; set; }
-    public double SpaceSavedMB { get; set; }
-}
-#endregion
-
+// Response models have been moved to FFMpeg.MCP.Host.Models.Output
 
 [McpServerToolType]
 public class AudioBackupTools

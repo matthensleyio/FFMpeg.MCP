@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
-using FFMpeg.MCP.Host.Models;
+using FFMpeg.MCP.Host.Models.Output;
+using FFMpeg.MCP.Host.Models.Input;
 using FFMpeg.MCP.Host.Services;
 using System.ComponentModel;
 using System.Text.Json;
@@ -13,30 +14,7 @@ using System.Threading.Tasks;
 
 namespace FFMpeg.MCP.Host.Tools;
 
-#region Response Models
-public class SplitResponse
-{
-    public string? Message { get; set; }
-    public List<string>? OutputFiles { get; set; }
-    public int FilesCreated { get; set; }
-}
-
-public class GetChaptersResponse
-{
-    public string? FilePath { get; set; }
-    public bool HasChapters { get; set; }
-    public int ChapterCount { get; set; }
-    public List<ChapterInfo>? Chapters { get; set; }
-}
-
-public class SplitWithProgressResponse
-{
-    public string OperationId { get; set; } = string.Empty;
-    public string Message { get; set; } = string.Empty;
-    public int TotalChapters { get; set; }
-    public bool IsNewOperation { get; set; }
-}
-#endregion
+// Response models have been moved to FFMpeg.MCP.Host.Models.Output
 
 [McpServerToolType]
 public class AudioSplittingTools

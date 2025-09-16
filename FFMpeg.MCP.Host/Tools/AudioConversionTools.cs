@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
-using FFMpeg.MCP.Host.Models;
+using FFMpeg.MCP.Host.Models.Output;
+using FFMpeg.MCP.Host.Models.Input;
 using FFMpeg.MCP.Host.Services;
 using System.ComponentModel;
 using System.Text.Json;
@@ -12,49 +13,6 @@ using System.Linq;
 using System.Threading.Tasks;
 
 namespace FFMpeg.MCP.Host.Tools;
-
-#region Response Models
-public class ConversionResponse
-{
-    public string? Message { get; set; }
-    public List<string>? OutputFiles { get; set; }
-    public ConversionInfo? Conversion { get; set; }
-}
-
-public class ConversionInfo
-{
-    public string? InputFormat { get; set; }
-    public string? OutputFormat { get; set; }
-    public long? InputSize { get; set; }
-    public long? OutputSize { get; set; }
-    public string? InputDuration { get; set; }
-    public string? OutputDuration { get; set; }
-    public int? Bitrate { get; set; }
-    public string? Codec { get; set; }
-    public int? CompressionLevel { get; set; }
-    public string? CompressionRatio { get; set; }
-    public int? SampleRate { get; set; }
-    public int? BitDepth { get; set; }
-}
-
-public class BatchConversionResponse
-{
-    public bool Success { get; set; }
-    public string? Message { get; set; }
-    public int TotalFiles { get; set; }
-    public int SuccessCount { get; set; }
-    public int FailureCount { get; set; }
-    public List<BatchConversionResult>? Results { get; set; }
-}
-
-public class BatchConversionResult
-{
-    public string? InputPath { get; set; }
-    public string? OutputPath { get; set; }
-    public bool Success { get; set; }
-    public string? Message { get; set; }
-}
-#endregion
 
 [McpServerToolType]
 public class AudioConversionTools
@@ -80,14 +38,14 @@ public class AudioConversionTools
     {
         return _dispatcher.DispatchAsync(async () =>
         {
-            if (string.IsNullOrWhiteSpace(inputPath)) throw new ArgumentException("Input path is required.", nameof(inputPath));
-            if (string.IsNullOrWhiteSpace(outputPath)) throw new ArgumentException("Output path is required.", nameof(outputPath));
-            if (!File.Exists(inputPath)) throw new FileNotFoundException("Input audio file not found.", inputPath);
+            if (string.IsNullOrWhiteSpace(inputPath)) { throw new ArgumentException("Input path is required.", nameof(inputPath)); }
+            if (string.IsNullOrWhiteSpace(outputPath)) { throw new ArgumentException("Output path is required.", nameof(outputPath)); }
+            if (!File.Exists(inputPath)) { throw new FileNotFoundException("Input audio file not found.", inputPath); }
 
             var options = new ConversionOptions { OutputFormat = format, Bitrate = bitrate, Codec = codec };
             var result = await _ffmpegService.ConvertFileAsync(inputPath, outputPath, options);
 
-            if (!result.Success) throw new InvalidOperationException($"Failed to convert audio: {result.Message}");
+            if (!result.Success) { throw new InvalidOperationException($"Failed to convert audio: {result.Message}"); }
 
             var inputInfo = await _ffmpegService.GetFileInfoAsync(inputPath);
             var outputInfo = await _ffmpegService.GetFileInfoAsync(outputPath);
@@ -122,9 +80,9 @@ public class AudioConversionTools
         return _dispatcher.DispatchAsync(async () =>
         {
             var inputPaths = JsonSerializer.Deserialize<string[]>(inputPathsJson);
-            if (inputPaths == null || !inputPaths.Any()) throw new ArgumentException("Invalid or empty input paths JSON provided", nameof(inputPathsJson));
+            if (inputPaths == null || !inputPaths.Any()) { throw new ArgumentException("Invalid or empty input paths JSON provided", nameof(inputPathsJson)); }
 
-            if (!Directory.Exists(outputDirectory)) Directory.CreateDirectory(outputDirectory);
+            if (!Directory.Exists(outputDirectory)) { Directory.CreateDirectory(outputDirectory); }
 
             var results = new List<BatchConversionResult>();
             var successCount = 0;
@@ -134,7 +92,7 @@ public class AudioConversionTools
             {
                 try
                 {
-                    var fileName = keepOriginalNames ? Path.GetFileNameWithoutExtension(inputPath) : $"converted_{DateTime.Now:yyyyMMdd_HHmmss}_{Path.GetFileNameWithoutExtension(inputPath)}";
+                    var fileName = keepOriginalNames ? Path.GetFileNameWithoutExtension(inputPath) : $"converted_{DateTime.Now:yyyyMMdd_HHmms}_{Path.GetFileNameWithoutExtension(inputPath)}";
                     var outputPath = Path.Combine(outputDirectory, $"{fileName}.{format}");
                     var options = new ConversionOptions { OutputFormat = format, Bitrate = bitrate };
                     var result = await _ffmpegService.ConvertFileAsync(inputPath, outputPath, options);
@@ -147,8 +105,8 @@ public class AudioConversionTools
                         Message = result.Message
                     });
 
-                    if (result.Success) successCount++;
-                    else failureCount++;
+                    if (result.Success) { successCount++; }
+                    else { failureCount++; }
                 }
                 catch (Exception ex)
                 {

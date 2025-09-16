@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
+using FFMpeg.MCP.Host.Models.Output;
 
-namespace FFMpeg.MCP.Host.Models;
+namespace FFMpeg.MCP.Host.Models.Output;
 
 public class OperationProgressUpdate
 {
