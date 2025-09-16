@@ -28,6 +28,9 @@
 		<None Update="Assets\ffmpeg-logo.png">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
+		<None Update="Assets\ffmpeg\ffmpeg-install.ps1">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 
 </Project>

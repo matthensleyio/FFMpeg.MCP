@@ -42,6 +42,7 @@ namespace FFMpeg.MCP.Host
             builder.Services
                 .AddHttpClient()
                 .AddScoped<IFFmpegService, FFmpegService>()
+                .AddSingleton<IProgressReporter, OperationTrackingService>()
                 .AddScoped<McpDispatcher>()
                 .AddMcpServer()
                 .WithStdioServerTransport()

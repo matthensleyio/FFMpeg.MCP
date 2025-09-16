@@ -10,6 +10,7 @@ public interface IFFmpegService
     Task<AudioFileInfo?> GetFileInfoAsync(string filePath);
     Task<OperationResult> UpdateMetadataAsync(string filePath, Dictionary<string, string> metadata, string? outputPath = null);
     Task<OperationResult> SplitFileAsync(string filePath, SplitOptions options);
+    Task<OperationStartResult> SplitFileAsyncWithProgress(string filePath, SplitOptions options, IProgressReporter? progressReporter = null);
     Task<OperationResult> ConvertFileAsync(string filePath, string outputPath, ConversionOptions options);
     Task<OperationResult> SetChaptersAsync(string filePath, List<ChapterInfo> chapters, string? outputPath = null);
     Task<OperationResult> BackupFileAsync(string filePath, string? backupPath = null);
@@ -268,6 +269,170 @@ public class FFmpegService : IFFmpegService
                 Message = "Error splitting file",
                 ErrorDetails = ex.Message
             };
+        }
+    }
+
+    public async Task<OperationStartResult> SplitFileAsyncWithProgress(string filePath, SplitOptions options, IProgressReporter? progressReporter = null)
+    {
+        try
+        {
+            _logger.LogInformation("Starting split operation with progress tracking for: {FilePath}", filePath);
+
+            if (!File.Exists(filePath))
+            {
+                throw new FileNotFoundException($"File not found: {filePath}");
+            }
+
+            var fileInfo = await GetFileInfoAsync(filePath);
+            if (fileInfo == null)
+            {
+                throw new InvalidOperationException("Could not analyze file");
+            }
+
+            var totalSteps = 0;
+            var operationType = string.Empty;
+
+            if (options.SplitByChapters && fileInfo.Chapters.Any())
+            {
+                totalSteps = fileInfo.Chapters.Count;
+                operationType = "SplitFileByChapters";
+            }
+            else if (options.MaxDuration.HasValue)
+            {
+                var maxDuration = options.MaxDuration.Value;
+                var totalDuration = fileInfo.Duration;
+                totalSteps = (int)Math.Ceiling(totalDuration.TotalSeconds / maxDuration.TotalSeconds);
+                operationType = "SplitFileByDuration";
+            }
+
+            if (totalSteps == 0)
+            {
+                throw new InvalidOperationException("No split operation configured - specify either MaxDuration or SplitByChapters");
+            }
+
+            if (progressReporter is OperationTrackingService trackingService)
+            {
+                var operationKey = new OperationKey
+                {
+                    FilePath = filePath,
+                    OperationType = operationType,
+                    Options = options
+                };
+
+                var startResult = trackingService.StartOperationWithDeduplication(operationKey, totalSteps, "Preparing to split file");
+
+                if (!startResult.IsNewOperation)
+                {
+                    _logger.LogInformation("Returning existing operation {OperationId} for duplicate request", startResult.OperationId);
+                    return startResult;
+                }
+
+                _ = Task.Run(async () => await ExecuteSplitOperationInBackground(filePath, options, fileInfo, startResult.OperationId, totalSteps, progressReporter));
+
+                return new OperationStartResult
+                {
+                    OperationId = startResult.OperationId,
+                    IsNewOperation = true,
+                    Message = $"Split operation started for {totalSteps} parts. Use operation ID to monitor progress."
+                };
+            }
+
+            throw new InvalidOperationException("Progress reporter is required for async operations");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error starting split operation with progress tracking for: {FilePath}", filePath);
+            throw;
+        }
+    }
+
+    private async Task ExecuteSplitOperationInBackground(string filePath, SplitOptions options, AudioFileInfo fileInfo, string operationId, int totalSteps, IProgressReporter? progressReporter)
+    {
+        var outputFiles = new List<string>();
+
+        try
+        {
+            if (options.SplitByChapters && fileInfo.Chapters.Any())
+            {
+                for (int i = 0; i < fileInfo.Chapters.Count; i++)
+                {
+                    var chapter = fileInfo.Chapters[i];
+                    var chapterTitle = string.IsNullOrEmpty(chapter.Title) ? $"Chapter {i + 1}" : chapter.Title;
+
+                    await progressReporter?.ReportProgressAsync(new OperationProgressUpdate
+                    {
+                        OperationId = operationId,
+                        CurrentStep = i + 1,
+                        TotalSteps = totalSteps,
+                        CurrentOperation = $"Processing {chapterTitle}"
+                    })!;
+
+                    var outputPath = GenerateChapterOutputPath(filePath, i + 1, chapter.Title, options.OutputPattern);
+                    var arguments = $"-i \"{filePath}\" -ss {chapter.StartTime} -to {chapter.EndTime} -c copy \"{outputPath}\"";
+                    var result = await ExecuteFFmpegProcess("ffmpeg", arguments);
+
+                    if (result.Success)
+                    {
+                        outputFiles.Add(outputPath);
+                        _logger.LogInformation("Successfully created chapter file: {OutputPath}", outputPath);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Failed to create chapter file: {OutputPath}", outputPath);
+                    }
+                }
+            }
+            else if (options.MaxDuration.HasValue)
+            {
+                var maxDuration = options.MaxDuration.Value;
+                var totalDuration = fileInfo.Duration;
+                var segmentCount = (int)Math.Ceiling(totalDuration.TotalSeconds / maxDuration.TotalSeconds);
+
+                for (int i = 0; i < segmentCount; i++)
+                {
+                    await progressReporter?.ReportProgressAsync(new OperationProgressUpdate
+                    {
+                        OperationId = operationId,
+                        CurrentStep = i + 1,
+                        TotalSteps = totalSteps,
+                        CurrentOperation = $"Processing segment {i + 1} of {segmentCount}"
+                    })!;
+
+                    var startTime = TimeSpan.FromSeconds(i * maxDuration.TotalSeconds);
+                    var duration = i == segmentCount - 1
+                        ? totalDuration - startTime
+                        : maxDuration;
+
+                    var outputPath = GenerateSegmentOutputPath(filePath, i + 1, options.OutputPattern);
+                    var arguments = $"-i \"{filePath}\" -ss {startTime} -t {duration} -c copy \"{outputPath}\"";
+                    var result = await ExecuteFFmpegProcess("ffmpeg", arguments);
+
+                    if (result.Success)
+                    {
+                        outputFiles.Add(outputPath);
+                        _logger.LogInformation("Successfully created segment file: {OutputPath}", outputPath);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Failed to create segment file: {OutputPath}", outputPath);
+                    }
+                }
+            }
+
+            var operationResult = new OperationResult
+            {
+                Success = outputFiles.Any(),
+                Message = outputFiles.Any() ? $"File split into {outputFiles.Count} parts" : "No files were created",
+                OutputFiles = outputFiles
+            };
+
+            await progressReporter?.ReportCompletionAsync(operationId, operationResult)!;
+            _logger.LogInformation("Split operation completed for: {FilePath}, created {Count} files", filePath, outputFiles.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in background split operation for: {FilePath}", filePath);
+            await progressReporter?.ReportErrorAsync(operationId, ex.Message)!;
         }
     }
 
