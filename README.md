@@ -59,17 +59,16 @@ This server requires FFmpeg to be installed and available in your system's PATH.
 
 You can verify the installation by running `ffmpeg -version` in your terminal.
 
-### 2. Build and Run the Server
-This project is built with .NET.
+### 2. Build and Publish the Server
+This project is built with .NET. To use it, you need to publish it as a self-contained executable.
 
 ```sh
-# Restore dependencies and build the project
-dotnet build
-
-# Run the server
-dotnet run --project FFMpeg.MCP.Host/FFMpeg.MCP.Host.csproj
+# Restore dependencies, build, and publish the project
+dotnet publish -c Release -r win-x64 --self-contained true
 ```
-The server will start and listen for connections from an MCP client.
+*(Replace `win-x64` with your target platform, e.g., `osx-arm64` for Apple Silicon or `linux-x64` for Linux)*
+
+This will create a runnable executable in the `FFMpeg.MCP.Host/bin/Release/net8.0/win-x64/publish/` directory.
 
 ## Claude Desktop Integration
 
@@ -79,33 +78,9 @@ To use this MCP server with Claude Desktop, add it to your Claude Desktop config
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
-### Configuration Example: Using `dotnet`
+### Configuration Example
 
-Add the following to your `claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "ffmpeg": {
-      "command": "dotnet",
-      "args": [
-        "run",
-        "--project", "C:\\path\\to\\your\\FFMpeg.MCP.Host\\FFMpeg.MCP.Host.csproj"
-      ],
-      "icon": "file://C:\\path\\to\\your\\FFMpeg.MCP.Host\\Assets\\ffmpeg-logo.png"
-    }
-  }
-}
-```
-
-### Configuration Example: Using a Published Executable
-
-If you prefer to use a compiled executable, first publish the project:
-```sh
-dotnet publish -c Release -r win-x64 --self-contained true
-```
-*(Replace `win-x64` with your target platform, e.g., `osx-arm64` for Apple Silicon)*
-
-Then, use the following configuration:
+Add the following to your `claude_desktop_config.json`, pointing to the published executable:
 ```json
 {
   "mcpServers": {
