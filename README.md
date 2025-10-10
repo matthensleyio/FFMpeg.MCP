@@ -1,87 +1,65 @@
 # FFMpeg MCP Server
 
-A Model Context Protocol (MCP) server that provides tools to interact with the powerful FFMpeg multimedia framework. This server exposes various FFMpeg functionalities as MCP tools that can be used by MCP-compatible clients for a wide range of audio and image processing tasks.
+A Model Context Protocol (MCP) server that exposes FFMpeg audio processing functionality to AI clients.
 
 ## Features
 
-This MCP server provides tools for:
+This MCP server provides 6 audio processing tools:
 
-### General
-- `check_ffmpeg_availability` - Check if FFmpeg is installed and accessible.
-- `get_supported_formats` - List all audio formats supported by the installed FFmpeg.
+1. **convert_audio** - Convert audio files between formats (mp3, wav, aac, flac, ogg, m4a)
+2. **get_audio_info** - Get detailed information about audio files
+3. **trim_audio** - Trim/cut audio to specific time ranges
+4. **adjust_audio_quality** - Adjust bitrate and sample rate
+5. **extract_audio_channel** - Extract specific channels from multi-channel audio
+6. **merge_audio_files** - Merge multiple audio files into one
 
-### Audio Conversion
-- `convert_audio_format` - Convert an audio file to a different format (e.g., mp3, wav, flac).
-- `batch_convert_audio` - Convert multiple audio files to the same format in one go.
+## Requirements
 
-### Audio Splitting & Chapters
-- `split_audio_by_chapters` - Split an audio file into multiple files based on its chapter markers.
-- `split_audio_by_duration` - Split an audio file into segments of a specific duration.
-- `get_audio_chapters` - Retrieve a list of chapters from an audio file.
-- `get_operation_progress` - Check the progress of long-running splitting operations.
+- .NET 9.0 SDK
+- FFMpeg installed and available in system PATH
 
-### Chapter Management
-- `set_audio_chapters` - Add or update chapters in an audio file using a JSON structure.
-- `generate_equal_chapters` - Automatically generate chapters of equal duration.
-- `remove_chapters` - Remove all chapter markers from an audio file.
-- `export_chapter_info` - Export chapter information to a file (JSON, CSV).
+## Installation
 
-### Metadata
-- `get_audio_file_info` - Get comprehensive metadata and technical details about an audio file.
-- `update_audio_metadata` - Update an audio file's metadata from a JSON object.
-- `update_common_metadata` - A helper to easily update common tags like title, artist, album, etc.
+### Install FFMpeg
 
-### Audiobook Creation
-- `concatenate_to_audiobook` - Combine multiple audio files into a single M4B audiobook with chapters and metadata.
-
-### Backup & Restore
-- `create_audio_backup` - Create a timestamped backup of a single audio file.
-- `create_batch_backup` - Create backups for a list of audio files.
-- `create_archive_backup` - Create a single compressed ZIP archive of multiple audio files.
-- `restore_from_backup` - Restore an audio file from a backup copy.
-- `list_backups` - List all available backups in a specified directory.
-- `cleanup_backups` - Clean up old backups based on age or number of copies.
-
-### Image Conversion
-- `convert_image_to_ico` - Convert an image file (e.g., PNG, JPG) to an ICO file.
-
-## Setup
-
-### 1. Install FFmpeg
-This server requires FFmpeg to be installed and available in your system's PATH.
-- **Windows**: For a simplified setup, you can use the included PowerShell script. Open a PowerShell terminal and run:
-  ```powershell
-  ./FFMpeg.MCP.Host/Assets/ffmpeg/ffmpeg-install.ps1
-  ```
-  This script will download the latest essential build of FFmpeg, extract it, and automatically add it to your user PATH. Alternatively, you can download from the [official website](https://www.ffmpeg.org/download.html) and add the `bin` directory to your PATH manually.
-- **macOS**: Install using Homebrew: `brew install ffmpeg`
-- **Linux**: Install using your package manager, e.g., `sudo apt-get install ffmpeg`
-
-You can verify the installation by running `ffmpeg -version` in your terminal.
-
-### 2. Build and Run the Server
-This project is built with .NET.
-
-```sh
-# Restore dependencies and build the project
-dotnet build
-
-# Run the server
-dotnet run --project FFMpeg.MCP.Host/FFMpeg.MCP.Host.csproj
+#### Windows
+```bash
+winget install FFmpeg
 ```
-The server will start and listen for connections from an MCP client.
 
-## Claude Desktop Integration
+#### macOS
+```bash
+brew install ffmpeg
+```
 
-To use this MCP server with Claude Desktop, add it to your Claude Desktop configuration file.
+#### Linux
+```bash
+sudo apt-get install ffmpeg
+```
 
-### Configuration File Location
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+### Build the Server
 
-### Configuration Example: Using `dotnet`
+```bash
+dotnet build src/FFMpegMcpServer/FFMpegMcpServer.csproj
+```
 
-Add the following to your `claude_desktop_config.json`:
+## Usage
+
+### Running the Server
+
+The server uses stdio transport for communication with MCP clients:
+
+```bash
+dotnet run --project src/FFMpegMcpServer/FFMpegMcpServer.csproj
+```
+
+### Configuring with Claude Desktop
+
+Add this configuration to your Claude Desktop config file:
+
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
 ```json
 {
   "mcpServers": {
@@ -89,46 +67,177 @@ Add the following to your `claude_desktop_config.json`:
       "command": "dotnet",
       "args": [
         "run",
-        "--project", "C:\\path\\to\\your\\FFMpeg.MCP.Host\\FFMpeg.MCP.Host.csproj"
-      ],
-      "icon": "file://C:\\path\\to\\your\\FFMpeg.MCP.Host\\Assets\\ffmpeg-logo.png"
+        "--project",
+        "C:\\path\\to\\FFMpeg.MCP\\src\\FFMpegMcpServer\\FFMpegMcpServer.csproj"
+      ]
     }
   }
 }
 ```
 
-### Configuration Example: Using a Published Executable
+## Available Tools
 
-If you prefer to use a compiled executable, first publish the project:
-```sh
-dotnet publish -c Release -r win-x64 --self-contained true
+### convert_audio
+
+Convert audio from one format to another.
+
+**Parameters:**
+- `inputPath` (string, required) - Path to input audio file
+- `outputPath` (string, required) - Path for output audio file
+- `targetFormat` (string, required) - Target format: mp3, wav, aac, flac, ogg, m4a
+- `bitrate` (int, optional) - Target bitrate in kbps (64-320)
+- `sampleRate` (int, optional) - Sample rate in Hz (22050, 44100, 48000, 96000)
+
+**Example:**
 ```
-*(Replace `win-x64` with your target platform, e.g., `osx-arm64` for Apple Silicon)*
-
-Then, use the following configuration:
-```json
-{
-  "mcpServers": {
-    "ffmpeg": {
-      "command": "C:\\path\\to\\your\\FFMpeg.MCP.Host\\bin\\Release\\net8.0\\win-x64\\publish\\FFMpeg.MCP.Host.exe",
-      "args": [],
-      "icon": "file://C:\\path\\to\\your\\FFMpeg.MCP.Host\\Assets\\ffmpeg-logo.png"
-    }
-  }
-}
+Convert my-audio.wav to MP3 at 192 kbps
 ```
 
-### Setup Steps
-1.  Replace `C:\\path\\to\\your\\` with the **absolute path** to the project on your machine.
-2.  Save the configuration file.
-3.  Restart Claude Desktop.
+### get_audio_info
 
-Once configured, you'll see the FFMpeg MCP server connected in Claude Desktop, and you'll be able to use all the FFMpeg tools directly in your conversations!
+Get detailed metadata about an audio file.
 
-## Dependencies
-- .NET 8.0
-- FFmpeg
-- ModelContextProtocol
-- Microsoft.Extensions.Hosting
-- Microsoft.Extensions.Http
-- Serilog
+**Parameters:**
+- `filePath` (string, required) - Path to audio file
+
+**Example:**
+```
+Get info about my-audio.mp3
+```
+
+### trim_audio
+
+Trim audio to a specific time range.
+
+**Parameters:**
+- `inputPath` (string, required) - Path to input audio file
+- `outputPath` (string, required) - Path for output audio file
+- `startSeconds` (double, required) - Start time in seconds
+- `endSeconds` (double, required) - End time in seconds
+
+**Example:**
+```
+Trim my-audio.wav from 10 seconds to 30 seconds
+```
+
+### adjust_audio_quality
+
+Adjust audio quality by changing bitrate and/or sample rate.
+
+**Parameters:**
+- `inputPath` (string, required) - Path to input audio file
+- `outputPath` (string, required) - Path for output audio file
+- `bitrate` (int, optional) - Target bitrate in kbps (64-320)
+- `sampleRate` (int, optional) - Sample rate in Hz (22050, 44100, 48000, 96000)
+
+**Example:**
+```
+Reduce quality of my-audio.mp3 to 128 kbps
+```
+
+### extract_audio_channel
+
+Extract a specific channel from multi-channel audio.
+
+**Parameters:**
+- `inputPath` (string, required) - Path to input audio file
+- `outputPath` (string, required) - Path for output audio file
+- `channel` (string, required) - Channel index (0 for left, 1 for right in stereo)
+
+**Example:**
+```
+Extract left channel from stereo-audio.wav
+```
+
+### merge_audio_files
+
+Merge multiple audio files into one.
+
+**Parameters:**
+- `inputPathsCsv` (string, required) - Comma-separated paths to input files
+- `outputPath` (string, required) - Path for output audio file
+- `outputFormat` (string, required) - Output format: mp3, wav, aac, flac, ogg, m4a
+
+**Example:**
+```
+Merge file1.mp3, file2.mp3, and file3.mp3 into combined.mp3
+```
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+dotnet test
+
+# Run only unit tests
+dotnet test tests/FFMpegMcpServer.UnitTests/FFMpegMcpServer.UnitTests.csproj
+
+# Run only integration tests
+dotnet test tests/FFMpegMcpServer.IntegrationTests/FFMpegMcpServer.IntegrationTests.csproj
+```
+
+### Project Structure
+
+```
+FFMpeg.MCP/
+├── src/
+│   └── FFMpegMcpServer/
+│       ├── Models/          # Data models
+│       ├── Services/        # Core audio processing services
+│       ├── Tools/           # MCP tool definitions
+│       ├── Validators/      # Input validation
+│       └── Program.cs       # Entry point
+├── tests/
+│   ├── FFMpegMcpServer.UnitTests/
+│   └── FFMpegMcpServer.IntegrationTests/
+└── README.md
+```
+
+## Architecture
+
+- **MCP Server**: Uses ModelContextProtocol library for stdio transport
+- **Audio Processing**: FFMpegCore library wraps FFMpeg functionality
+- **Background Processing**: Channel-based task queue for async operations
+- **Progress Notifications**: Real-time progress updates for long-running operations
+- **Dependency Injection**: Microsoft.Extensions.Hosting for service management
+
+## Supported Audio Formats
+
+- MP3 (.mp3)
+- WAV (.wav)
+- AAC (.aac, .m4a)
+- FLAC (.flac)
+- OGG (.ogg)
+
+## Error Handling
+
+All operations return detailed error messages when failures occur. Common error scenarios:
+
+- Invalid file paths
+- Unsupported audio formats
+- Invalid parameter values (bitrate, sample rate, etc.)
+- FFMpeg processing errors
+
+## License
+
+This project uses the following open-source libraries:
+- FFMpegCore (MIT License)
+- ModelContextProtocol (MIT License)
+- Microsoft.Extensions.Hosting (MIT License)
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests to ensure everything passes
+5. Submit a pull request
+
+## Support
+
+For issues and questions:
+- Check FFMpeg installation: `ffmpeg -version`
+- Verify .NET version: `dotnet --version`
+- Review server logs for error messages
