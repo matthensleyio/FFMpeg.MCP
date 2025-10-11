@@ -1,4 +1,4 @@
-namespace FFMpegMcpServer.Validators;
+namespace FFMpeg.Mcp.Host.Validators;
 
 public static class FilePathValidator
 {

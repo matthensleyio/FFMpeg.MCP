@@ -1,5 +1,5 @@
 using FFMpegCore;
-using FFMpegMcpServer.Services;
+using FFMpeg.Mcp.Host.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ModelContextProtocol;

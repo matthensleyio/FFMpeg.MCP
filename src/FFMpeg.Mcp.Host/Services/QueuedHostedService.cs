@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace FFMpegMcpServer.Services;
+namespace FFMpeg.Mcp.Host.Services;
 
 public class QueuedHostedService : BackgroundService
 {

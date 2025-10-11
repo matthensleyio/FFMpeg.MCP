@@ -1,6 +1,6 @@
-using FFMpegMcpServer.Models;
+using FFMpeg.Mcp.Host.Models;
 
-namespace FFMpegMcpServer.Services;
+namespace FFMpeg.Mcp.Host.Services;
 
 public interface IAudioProcessingService
 {

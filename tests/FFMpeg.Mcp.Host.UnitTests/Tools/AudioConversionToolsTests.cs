@@ -1,6 +1,6 @@
-using FFMpegMcpServer.Models;
-using FFMpegMcpServer.Services;
-using FFMpegMcpServer.Tools;
+using FFMpeg.Mcp.Host.Models;
+using FFMpeg.Mcp.Host.Services;
+using FFMpeg.Mcp.Host.Tools;
 using FluentAssertions;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
@@ -8,7 +8,7 @@ using ModelContextProtocol.Server;
 using NSubstitute;
 using Xunit;
 
-namespace FFMpegMcpServer.UnitTests.Tools;
+namespace FFMpeg.Mcp.Host.UnitTests.Tools;
 
 public class AudioConversionToolsTests
 {

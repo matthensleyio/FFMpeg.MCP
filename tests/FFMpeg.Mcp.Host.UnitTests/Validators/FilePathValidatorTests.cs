@@ -1,7 +1,7 @@
-using FFMpegMcpServer.Validators;
+using FFMpeg.Mcp.Host.Validators;
 using FluentAssertions;
 
-namespace FFMpegMcpServer.UnitTests.Validators;
+namespace FFMpeg.Mcp.Host.UnitTests.Validators;
 
 public class FilePathValidatorTests
 {

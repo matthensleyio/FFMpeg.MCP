@@ -1,9 +1,9 @@
-using FFMpegMcpServer.Models;
-using FFMpegMcpServer.Services;
+using FFMpeg.Mcp.Host.Models;
+using FFMpeg.Mcp.Host.Services;
 using FluentAssertions;
 using Xunit;
 
-namespace FFMpegMcpServer.UnitTests.Services;
+namespace FFMpeg.Mcp.Host.UnitTests.Services;
 
 public class AudioProcessingServiceTests
 {

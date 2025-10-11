@@ -1,6 +1,6 @@
 using System.Threading.Channels;
 
-namespace FFMpegMcpServer.Services;
+namespace FFMpeg.Mcp.Host.Services;
 
 public class BackgroundTaskQueue : IBackgroundTaskQueue
 {

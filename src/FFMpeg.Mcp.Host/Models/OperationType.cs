@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace FFMpegMcpServer.Models;
+namespace FFMpeg.Mcp.Host.Models;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum OperationType

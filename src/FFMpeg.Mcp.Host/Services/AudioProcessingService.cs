@@ -1,8 +1,8 @@
 using FFMpegCore;
-using FFMpegMcpServer.Models;
-using FFMpegMcpServer.Validators;
+using FFMpeg.Mcp.Host.Models;
+using FFMpeg.Mcp.Host.Validators;
 
-namespace FFMpegMcpServer.Services;
+namespace FFMpeg.Mcp.Host.Services;
 
 public class AudioProcessingService : IAudioProcessingService
 {

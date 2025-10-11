@@ -1,10 +1,10 @@
 using System.ComponentModel;
-using FFMpegMcpServer.Services;
+using FFMpeg.Mcp.Host.Services;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
-namespace FFMpegMcpServer.Tools;
+namespace FFMpeg.Mcp.Host.Tools;
 
 [McpServerToolType]
 public class AudioConversionTools

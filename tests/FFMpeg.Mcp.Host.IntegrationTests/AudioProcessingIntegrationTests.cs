@@ -1,10 +1,10 @@
 using FFMpegCore;
-using FFMpegMcpServer.Models;
-using FFMpegMcpServer.Services;
+using FFMpeg.Mcp.Host.Models;
+using FFMpeg.Mcp.Host.Services;
 using FluentAssertions;
 using Xunit;
 
-namespace FFMpegMcpServer.IntegrationTests;
+namespace FFMpeg.Mcp.Host.IntegrationTests;
 
 public class AudioProcessingIntegrationTests : IDisposable
 {

@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\FFMpegMcpServer\FFMpegMcpServer.csproj" />
+    <ProjectReference Include="..\..\src\FFMpeg.Mcp.Host\FFMpeg.Mcp.Host.csproj" />
   </ItemGroup>
 
 </Project>

@@ -15,22 +15,22 @@ FFMpeg MCP Server - A Model Context Protocol (MCP) server that exposes FFMpeg au
 
 ```bash
 # Build the server
-dotnet build src/FFMpegMcpServer/FFMpegMcpServer.csproj
+dotnet build src/FFMpeg.Mcp.Host/FFMpeg.Mcp.Host.csproj
 
 # Build entire solution
-dotnet build FFMpegMcpServer.sln
+dotnet build FFMpeg.Mcp.sln
 
 # Run the MCP server (uses stdio transport)
-dotnet run --project src/FFMpegMcpServer/FFMpegMcpServer.csproj
+dotnet run --project src/FFMpeg.Mcp.Host/FFMpeg.Mcp.Host.csproj
 
 # Run all tests
 dotnet test
 
 # Run only unit tests
-dotnet test tests/FFMpegMcpServer.UnitTests/FFMpegMcpServer.UnitTests.csproj
+dotnet test tests/FFMpeg.Mcp.Host.UnitTests/FFMpeg.Mcp.Host.UnitTests.csproj
 
 # Run only integration tests
-dotnet test tests/FFMpegMcpServer.IntegrationTests/FFMpegMcpServer.IntegrationTests.csproj
+dotnet test tests/FFMpeg.Mcp.Host.IntegrationTests/FFMpeg.Mcp.Host.IntegrationTests.csproj
 ```
 
 ## Architecture

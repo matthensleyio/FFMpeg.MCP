@@ -1,7 +1,7 @@
-using FFMpegMcpServer.Models;
+using FFMpeg.Mcp.Host.Models;
 using FluentAssertions;
 
-namespace FFMpegMcpServer.UnitTests.Models;
+namespace FFMpeg.Mcp.Host.UnitTests.Models;
 
 public class AudioFileInfoTests
 {

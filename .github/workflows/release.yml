@@ -1,0 +1,142 @@
+name: Build, Release, and Publish
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test --no-build --configuration Release --verbosity normal
+
+      - name: Get latest tag and increment version
+        id: version
+        run: |
+          # Fetch all tags
+          git fetch --tags
+
+          # Get the latest semantic version tag (format: v1.0.0)
+          LATEST_TAG=$(git tag -l "v*.*.*" | sort -V | tail -n1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            # No existing tags, start with v1.0.0
+            NEW_VERSION="1.0.0"
+          else
+            # Extract version numbers
+            VERSION=${LATEST_TAG#v}
+            MAJOR=$(echo $VERSION | cut -d. -f1)
+            MINOR=$(echo $VERSION | cut -d. -f2)
+            PATCH=$(echo $VERSION | cut -d. -f3)
+
+            # Increment patch version
+            PATCH=$((PATCH + 1))
+            NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          fi
+
+          NEW_TAG="v$NEW_VERSION"
+          echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $NEW_TAG"
+
+      - name: Publish for Windows
+        run: |
+          dotnet publish src/FFMpeg.Mcp.Host/FFMpeg.Mcp.Host.csproj \
+            --configuration Release \
+            --runtime win-x64 \
+            --self-contained true \
+            --output ./publish/win-x64 \
+            -p:PublishSingleFile=true \
+            -p:PublishTrimmed=false \
+            -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Publish for Linux
+        run: |
+          dotnet publish src/FFMpeg.Mcp.Host/FFMpeg.Mcp.Host.csproj \
+            --configuration Release \
+            --runtime linux-x64 \
+            --self-contained true \
+            --output ./publish/linux-x64 \
+            -p:PublishSingleFile=true \
+            -p:PublishTrimmed=false \
+            -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Publish for macOS
+        run: |
+          dotnet publish src/FFMpeg.Mcp.Host/FFMpeg.Mcp.Host.csproj \
+            --configuration Release \
+            --runtime osx-x64 \
+            --self-contained true \
+            --output ./publish/osx-x64 \
+            -p:PublishSingleFile=true \
+            -p:PublishTrimmed=false \
+            -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Package releases
+        run: |
+          cd publish
+          zip -r ../ffmpeg-mcp-server-win-x64.zip win-x64/
+          tar -czf ../ffmpeg-mcp-server-linux-x64.tar.gz linux-x64/
+          tar -czf ../ffmpeg-mcp-server-osx-x64.tar.gz osx-x64/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.tag }}
+          body: |
+            ## FFMpeg MCP Server Release ${{ steps.version.outputs.tag }}
+
+            ### What's Included
+            - Windows x64 build (self-contained)
+            - Linux x64 build (self-contained)
+            - macOS x64 build (self-contained)
+
+            ### Requirements
+            - FFMpeg must be installed and available in system PATH
+
+            ### Usage
+            Extract the appropriate archive for your platform and run the executable:
+            - Windows: `FFMpegMcpServer.exe`
+            - Linux/macOS: `./FFMpegMcpServer`
+
+            ### Claude Desktop Configuration
+            Add this to your Claude Desktop config:
+            ```json
+            {
+              "mcpServers": {
+                "ffmpeg": {
+                  "command": "/path/to/FFMpegMcpServer"
+                }
+              }
+            }
+            ```
+
+            Commit: ${{ github.sha }}
+          files: |
+            ffmpeg-mcp-server-win-x64.zip
+            ffmpeg-mcp-server-linux-x64.tar.gz
+            ffmpeg-mcp-server-osx-x64.tar.gz
+          draft: false
+          prerelease: false
