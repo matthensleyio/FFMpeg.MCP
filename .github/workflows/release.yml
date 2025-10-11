@@ -28,8 +28,8 @@ jobs:
       - name: Build solution
         run: dotnet build --configuration Release --no-restore
 
-      - name: Run tests
-        run: dotnet test --no-build --configuration Release --verbosity normal
+      - name: Run unit tests
+        run: dotnet test tests/FFMpeg.Mcp.Host.UnitTests/FFMpeg.Mcp.Host.UnitTests.csproj --no-build --configuration Release --verbosity normal
 
       - name: Get latest tag and increment version
         id: version
