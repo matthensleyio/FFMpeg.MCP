@@ -4,6 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ModelContextProtocol;
 
+Console.SetOut(Console.Error);
+
 GlobalFFOptions.Configure(options =>
 {
     options.TemporaryFilesFolder = Path.GetTempPath();
